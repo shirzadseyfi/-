@@ -968,6 +968,14 @@ const caseWorkerMonthlySeed: CaseWorkerPerformanceItem[] = [
     stageTransitionsCount: 28,
     avgTransitionDays: 6.8,
     onTimeFollowUpPct: 94,
+    recordSpeedScore: 92,
+    assessmentAccuracyScore: 95,
+    onTimeFollowUpScore: 94,
+    conflictResolutionScore: 90,
+    documentationQualityScore: 96,
+    currentWeekCompletedCount: 8,
+    currentWeekTargetCount: 8,
+    stageDurations: { stage1: 2.1, stage2: 5.4, stage3: 7.2, stage4: 12.0, stage5: 38.5, stage6: 6.2 },
   },
   {
     id: 'cw-dar-2',
@@ -982,6 +990,14 @@ const caseWorkerMonthlySeed: CaseWorkerPerformanceItem[] = [
     stageTransitionsCount: 22,
     avgTransitionDays: 8.1,
     onTimeFollowUpPct: 89,
+    recordSpeedScore: 88,
+    assessmentAccuracyScore: 91,
+    onTimeFollowUpScore: 89,
+    conflictResolutionScore: 88,
+    documentationQualityScore: 90,
+    currentWeekCompletedCount: 6,
+    currentWeekTargetCount: 7,
+    stageDurations: { stage1: 3.2, stage2: 6.8, stage3: 8.9, stage4: 15.2, stage5: 42.0, stage6: 8.0 },
   },
   {
     id: 'cw-dar-3',
@@ -996,6 +1012,14 @@ const caseWorkerMonthlySeed: CaseWorkerPerformanceItem[] = [
     stageTransitionsCount: 19,
     avgTransitionDays: 5.9,
     onTimeFollowUpPct: 96,
+    recordSpeedScore: 95,
+    assessmentAccuracyScore: 90,
+    onTimeFollowUpScore: 96,
+    conflictResolutionScore: 92,
+    documentationQualityScore: 94,
+    currentWeekCompletedCount: 5,
+    currentWeekTargetCount: 6,
+    stageDurations: { stage1: 1.8, stage2: 4.5, stage3: 6.0, stage4: 10.5, stage5: 35.0, stage6: 5.5 },
   },
   {
     id: 'cw-eda-1',
@@ -1010,6 +1034,14 @@ const caseWorkerMonthlySeed: CaseWorkerPerformanceItem[] = [
     stageTransitionsCount: 25,
     avgTransitionDays: 7.4,
     onTimeFollowUpPct: 91,
+    recordSpeedScore: 90,
+    assessmentAccuracyScore: 93,
+    onTimeFollowUpScore: 91,
+    conflictResolutionScore: 95,
+    documentationQualityScore: 92,
+    currentWeekCompletedCount: 7,
+    currentWeekTargetCount: 8,
+    stageDurations: { stage1: 2.5, stage2: 6.0, stage3: 7.8, stage4: 13.5, stage5: 40.0, stage6: 7.1 },
   },
   {
     id: 'cw-eda-2',
@@ -1024,6 +1056,14 @@ const caseWorkerMonthlySeed: CaseWorkerPerformanceItem[] = [
     stageTransitionsCount: 24,
     avgTransitionDays: 6.2,
     onTimeFollowUpPct: 93,
+    recordSpeedScore: 93,
+    assessmentAccuracyScore: 94,
+    onTimeFollowUpScore: 93,
+    conflictResolutionScore: 91,
+    documentationQualityScore: 95,
+    currentWeekCompletedCount: 6,
+    currentWeekTargetCount: 7,
+    stageDurations: { stage1: 2.0, stage2: 4.8, stage3: 6.5, stage4: 11.2, stage5: 36.5, stage6: 5.8 },
   },
   {
     id: 'cw-eda-3',
@@ -1038,6 +1078,14 @@ const caseWorkerMonthlySeed: CaseWorkerPerformanceItem[] = [
     stageTransitionsCount: 14,
     avgTransitionDays: 10.6,
     onTimeFollowUpPct: 82,
+    recordSpeedScore: 78,
+    assessmentAccuracyScore: 85,
+    onTimeFollowUpScore: 82,
+    conflictResolutionScore: 80,
+    documentationQualityScore: 84,
+    currentWeekCompletedCount: 4,
+    currentWeekTargetCount: 6,
+    stageDurations: { stage1: 4.1, stage2: 8.5, stage3: 11.0, stage4: 18.0, stage5: 52.0, stage6: 10.5 },
   },
 ];
 
@@ -2660,6 +2708,7 @@ async function startServer() {
           redTier: 48,
           yellowTier: 64,
           greenTier: 22,
+          avgResponseDays: 14.5,
         },
         {
           monthKey: '1405-04',
@@ -2670,6 +2719,7 @@ async function startServer() {
           redTier: 44,
           yellowTier: 68,
           greenTier: 27,
+          avgResponseDays: 13.2,
         },
         {
           monthKey: '1405-05',
@@ -2680,6 +2730,7 @@ async function startServer() {
           redTier: 39,
           yellowTier: 71,
           greenTier: 34,
+          avgResponseDays: 12.0,
         },
         {
           monthKey: '1405-06',
@@ -2690,6 +2741,7 @@ async function startServer() {
           redTier: 34,
           yellowTier: 72,
           greenTier: 41,
+          avgResponseDays: 10.8,
         },
         {
           monthKey: '1405-07',
@@ -2700,6 +2752,7 @@ async function startServer() {
           redTier: 29,
           yellowTier: 69,
           greenTier: 49,
+          avgResponseDays: 9.5,
         },
         {
           monthKey: '1405-08',
@@ -2710,6 +2763,7 @@ async function startServer() {
           redTier: 25 + extraRed,
           yellowTier: 67 + extraYellow,
           greenTier: 56 + extraGreen,
+          avgResponseDays: 8.2,
         },
       ],
       darolahsan: [
@@ -2722,6 +2776,7 @@ async function startServer() {
           redTier: 26,
           yellowTier: 34,
           greenTier: 12,
+          avgResponseDays: 14.8,
         },
         {
           monthKey: '1405-04',
@@ -2732,6 +2787,7 @@ async function startServer() {
           redTier: 24,
           yellowTier: 36,
           greenTier: 15,
+          avgResponseDays: 13.5,
         },
         {
           monthKey: '1405-05',
@@ -2742,6 +2798,7 @@ async function startServer() {
           redTier: 21,
           yellowTier: 37,
           greenTier: 19,
+          avgResponseDays: 12.2,
         },
         {
           monthKey: '1405-06',
@@ -2752,6 +2809,7 @@ async function startServer() {
           redTier: 18,
           yellowTier: 38,
           greenTier: 23,
+          avgResponseDays: 11.0,
         },
         {
           monthKey: '1405-07',
@@ -2762,6 +2820,7 @@ async function startServer() {
           redTier: 15,
           yellowTier: 36,
           greenTier: 27,
+          avgResponseDays: 9.8,
         },
         {
           monthKey: '1405-08',
@@ -2772,6 +2831,7 @@ async function startServer() {
           redTier: 13 + extraRed,
           yellowTier: 35 + extraYellow,
           greenTier: 31 + extraGreen,
+          avgResponseDays: 8.5,
         },
       ],
       edalat: [
@@ -2784,6 +2844,7 @@ async function startServer() {
           redTier: 22,
           yellowTier: 30,
           greenTier: 10,
+          avgResponseDays: 14.1,
         },
         {
           monthKey: '1405-04',
@@ -2794,6 +2855,7 @@ async function startServer() {
           redTier: 20,
           yellowTier: 32,
           greenTier: 12,
+          avgResponseDays: 12.8,
         },
         {
           monthKey: '1405-05',
@@ -2804,6 +2866,7 @@ async function startServer() {
           redTier: 18,
           yellowTier: 34,
           greenTier: 15,
+          avgResponseDays: 11.7,
         },
         {
           monthKey: '1405-06',
@@ -2814,6 +2877,7 @@ async function startServer() {
           redTier: 16,
           yellowTier: 34,
           greenTier: 18,
+          avgResponseDays: 10.5,
         },
         {
           monthKey: '1405-07',
@@ -2824,6 +2888,7 @@ async function startServer() {
           redTier: 14,
           yellowTier: 33,
           greenTier: 22,
+          avgResponseDays: 9.2,
         },
         {
           monthKey: '1405-08',
@@ -2834,6 +2899,7 @@ async function startServer() {
           redTier: 12 + extraRed,
           yellowTier: 32 + extraYellow,
           greenTier: 25 + extraGreen,
+          avgResponseDays: 7.9,
         },
       ],
     };

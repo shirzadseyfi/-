@@ -294,6 +294,7 @@ export interface MonthlyReportPoint {
   redTier: number;
   yellowTier: number;
   greenTier: number;
+  avgResponseDays: number;
 }
 
 export interface EmploymentDistributionItem {
@@ -325,6 +326,21 @@ export interface CaseWorkerPerformanceItem {
   stageTransitionsCount: number;
   avgTransitionDays: number;
   onTimeFollowUpPct: number;
+  recordSpeedScore: number;
+  assessmentAccuracyScore: number;
+  onTimeFollowUpScore: number;
+  conflictResolutionScore: number;
+  documentationQualityScore: number;
+  currentWeekCompletedCount: number;
+  currentWeekTargetCount: number;
+  stageDurations: {
+    stage1: number;
+    stage2: number;
+    stage3: number;
+    stage4: number;
+    stage5: number;
+    stage6: number;
+  };
 }
 
 export interface ReportsPayload {
@@ -452,3 +468,17 @@ export interface StageForecastPayload {
   transitionMatrix: StageTransitionCell[];
   recommendations: string[];
 }
+
+export type AttachmentCategory = 'lease' | 'medical' | 'identity' | 'receipt' | 'other';
+
+export interface CaseAttachment {
+  id: string;
+  caseId: string;
+  title: string;
+  category: AttachmentCategory;
+  categoryLabel: string;
+  dataUrl: string;
+  timestamp: string;
+  uploaderName: string;
+}
+

@@ -17,6 +17,9 @@ import {NaysarInteractiveMap} from './NaysarInteractiveMap';
 import {Stage5FollowUpCalendar} from './Stage5FollowUpCalendar';
 import {StageDistributionPieWidget} from './StageDistributionPieWidget';
 import {StageForecastPanel} from './StageForecastPanel';
+import {CaseworkerOverloadForecastWidget} from './CaseworkerOverloadForecastWidget';
+import {LivelihoodUrgentPriorityCard} from './LivelihoodUrgentPriorityCard';
+import {CaseAttachmentsModal} from './CaseAttachmentsModal';
 import {exportCasesRegisterToExcel} from '../utils/excelExport';
 import type {
   AiPrioritizationFocus,
@@ -63,6 +66,10 @@ const STAGE_LABELS: Record<CaseStage, string> = {
   5: '۵. پایش مستمر',
   6: '۶. خروج موفق',
 };
+
+function toPersianNum(num: number): string {
+  return new Intl.NumberFormat('fa-IR').format(num);
+}
 
 function getInstitutionName(id: InstitutionId | 'joint_pilot'): string {
   if (id === 'darolahsan') return 'دارالاحسان سنندج';
@@ -172,12 +179,73 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   const [isSearchingServer, setIsSearchingServer] = useState(false);
   const [inspectedCase, setInspectedCase] = useState<CaseRecordView | null>(null);
   const [dossierCase, setDossierCase] = useState<CaseRecordView | null>(null);
+  const [attachmentsCase, setAttachmentsCase] = useState<CaseRecordView | null>(null);
   const [workflowCaseId, setWorkflowCaseId] = useState<string | null>(initialWorkflowCaseId);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [aiFocus, setAiFocus] = useState<AiPrioritizationFocus>('comprehensive');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<AiPrioritizationResult | null>(null);
+
+  interface QuickNoteItem {
+    id: string;
+    caseId: string;
+    timestamp: string;
+    author: string;
+    text: string;
+  }
+
+  const [quickNotesMap, setQuickNotesMap] = useState<Record<string, QuickNoteItem[]>>(() => {
+    try {
+      const saved = localStorage.getItem('naysar_quick_notes_map');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      'NY-1405-101': [
+        { id: 'qn-1', caseId: 'NY-1405-101', timestamp: '۱۴۰۵/۰۸/۲۲ · ۱۱:۳۰', author: 'سهیلا محمدی', text: 'پیگیری داروی تنفسی سرپرست از هلال احمر انجام شد.' },
+      ],
+      'NY-1405-102': [
+        { id: 'qn-2', caseId: 'NY-1405-102', timestamp: '۱۴۰۵/۰۸/۲۰ · ۰۹:۱۵', author: 'کیوان فاتحی', text: 'آماده معرفی برای دریافت چرخ خیاطی از صندوق همت نایسر.' },
+      ],
+    };
+  });
+  const [activeQuickNotesCase, setActiveQuickNotesCase] = useState<CaseRecordView | null>(null);
+  const [newQuickNoteText, setNewQuickNoteText] = useState('');
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('naysar_quick_notes_map', JSON.stringify(quickNotesMap));
+    } catch {}
+  }, [quickNotesMap]);
+
+  const handleAddQuickNote = () => {
+    if (!activeQuickNotesCase || !newQuickNoteText.trim()) return;
+    const noteText = newQuickNoteText.trim();
+    const nowStr = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+      timeZone: 'Asia/Tehran',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(new Date());
+
+    const newItem: QuickNoteItem = {
+      id: `qn-${Date.now()}`,
+      caseId: activeQuickNotesCase.id,
+      timestamp: nowStr,
+      author: 'مددکار سامانه',
+      text: noteText,
+    };
+
+    setQuickNotesMap((prev) => ({
+      ...prev,
+      [activeQuickNotesCase.id]: [newItem, ...(prev[activeQuickNotesCase.id] || [])],
+    }));
+    setNewQuickNoteText('');
+    onExportToast?.('یادداشت سریع ثبت شد', `نکته کلیدی برای پرونده ${activeQuickNotesCase.id} ذخیره گردید.`);
+  };
 
   useEffect(() => {
     if (initialWorkflowCaseId) {
@@ -460,6 +528,76 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         </div>
       </section>
 
+      {/* Weekly Activity Summary Widget */}
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              خلاصه فعالیت هفته جاری در مقایسه با هفته گذشته
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              پایش آماری سرعت ارجاع پرونده‌ها، ارزیابی‌های میدانی انجام‌شده و خروجی‌های موفق (خوداتکایی) تیم مددکاری
+            </p>
+          </div>
+          <div className="text-xs font-semibold px-3 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 tabular-nums">
+            هفته سوم آبان ۱۴۰۵ · به‌روزرسانی زنده
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-2">
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              پرونده‌های ارجاع‌شده (ورودی هفته)
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-3xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                {toPersianNum(14)}
+              </span>
+              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
+                +۱۶.۷٪ ↗ نسبت به هفته قبل
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              هفته گذشته: ۱۲ پرونده ارجاعی
+            </div>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-2">
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              پرونده‌های ارزیابی‌شده (میدانی)
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-3xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                {toPersianNum(22)}
+              </span>
+              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
+                +۸.۳٪ ↗ نسبت به هفته قبل
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              هفته گذشته: ۲۰ ارزیابی کامل
+            </div>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-2">
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              خروجی‌های موفق (خوداتکایی)
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-3xl font-bold text-teal-700 dark:text-teal-400 tabular-nums">
+                {toPersianNum(5)}
+              </span>
+              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
+                +۲۵.۰٪ ↗ نسبت به هفته قبل
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              هفته گذشته: ۴ خروج موفق
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 6-Stage Case Status Distribution Pie Chart Widget */}
       <StageDistributionPieWidget
         cases={cases}
@@ -474,6 +612,24 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         cases={cases}
         onInspectCase={(item) => setInspectedCase(item)}
         onOpenWorkflow={(caseId) => setWorkflowCaseId(caseId)}
+      />
+
+      {/* Caseworker Overload Forecast Widget */}
+      <CaseworkerOverloadForecastWidget
+        cases={cases}
+        isDark={isDark}
+        themeAccent={themeAccent}
+        onExportToast={onExportToast}
+      />
+
+      {/* Livelihood Urgent Priority Card for Stage 4 Cases */}
+      <LivelihoodUrgentPriorityCard
+        cases={cases}
+        onInspectCase={(item) => setInspectedCase(item)}
+        onOpenWorkflow={(caseId) => setWorkflowCaseId(caseId)}
+        isDark={isDark}
+        themeAccent={themeAccent}
+        onExportToast={onExportToast}
       />
 
       {/* Quick Text Search for Head Name or Partial National ID */}
@@ -1284,6 +1440,24 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
+                            onClick={() => setActiveQuickNotesCase(item)}
+                            className="px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-950 rounded-md transition-colors inline-flex items-center gap-1"
+                            title="یادداشت‌های سریع این پرونده"
+                          >
+                            <span>📝</span>
+                            <span>یادداشت {(quickNotesMap[item.id] || []).length > 0 ? `(${(quickNotesMap[item.id] || []).length})` : ''}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAttachmentsCase(item)}
+                            className="px-2.5 py-1.5 text-xs font-medium text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 bg-teal-50/70 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-950 rounded-md transition-colors inline-flex items-center gap-1"
+                            title="پیوست‌های اسناد و تصویربرداری با دوربین"
+                          >
+                            <span>📷</span>
+                            <span>پیوست‌ها</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setInspectedCase(item)}
                             className="px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                           >
@@ -1595,6 +1769,104 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
       )}
     </div>
 
+    {/* Quick Notes Modal Dialog */}
+    {activeQuickNotesCase && (
+      <div
+        className="fixed inset-0 z-50 bg-slate-900/50 dark:bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setActiveQuickNotesCase(null);
+          }
+        }}
+      >
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-5 shadow-xl">
+          <div className="flex items-start justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                پرونده {activeQuickNotesCase.id} · {activeQuickNotesCase.fullName || 'پرونده محرمانه'}
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">
+                یادداشت‌های سریع (Quick Notes)
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveQuickNotesCase(null)}
+              aria-label="بستن پنجره"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                ثبت نکته کلیدی جدید در لحظه:
+              </label>
+              <textarea
+                rows={3}
+                value={newQuickNoteText}
+                onChange={(e) => setNewQuickNoteText(e.target.value)}
+                placeholder="مثلاً: هماهنگ شد با خیر برای تامین هزینه دارو؛ تاریخ مراجعه بعدی ۱۴۰۵/۰۹/۱۰..."
+                className="w-full p-3 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  disabled={!newQuickNoteText.trim()}
+                  onClick={handleAddQuickNote}
+                  className="px-4 py-2 text-xs font-medium text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  افزودن یادداشت سریع
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-3">
+              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                تاریخچه یادداشت‌های این پرونده ({(quickNotesMap[activeQuickNotesCase.id] || []).length}):
+              </div>
+              {(quickNotesMap[activeQuickNotesCase.id] || []).length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-xl">
+                  هنوز یادداشت سریعی برای این پرونده ثبت نشده است.
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                  {(quickNotesMap[activeQuickNotesCase.id] || []).map((note) => (
+                    <div
+                      key={note.id}
+                      className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1 text-xs"
+                    >
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 tabular-nums">
+                        <span className="font-semibold text-teal-800 dark:text-teal-300">{note.author}</span>
+                        <span>{note.timestamp}</span>
+                      </div>
+                      <p className="text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                        {note.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setActiveQuickNotesCase(null)}
+              className="px-4 py-2 text-sm font-medium border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg"
+            >
+              بستن
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* Publishable & Printable Single-Beneficiary Comprehensive Dossier Modal */}
     {dossierCase && (
       <BeneficiaryDossierModal
@@ -1602,6 +1874,16 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         preparedBy={preparedBy}
         generatedAt={generatedAt}
         onClose={() => setDossierCase(null)}
+        onExportToast={onExportToast}
+      />
+    )}
+
+    {/* Case Attachments Modal for Camera & Document Upload */}
+    {attachmentsCase && (
+      <CaseAttachmentsModal
+        isOpen={!!attachmentsCase}
+        onClose={() => setAttachmentsCase(null)}
+        caseItem={cases.find((c) => c.id === attachmentsCase.id) || attachmentsCase}
         onExportToast={onExportToast}
       />
     )}

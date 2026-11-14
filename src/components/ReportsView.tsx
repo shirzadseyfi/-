@@ -5,12 +5,14 @@ import {
   Eye,
   FileSpreadsheet,
   Printer,
+  Award,
 } from 'lucide-react';
 import {
   INSTITUTION_LOGOS,
   InstitutionalLogo,
   PartnerLogosPair,
 } from './InstitutionalLogo';
+import {BoardOfDirectorsReportModal} from './BoardOfDirectorsReportModal';
 import type {
   CaseRecordView,
   CaseWorkerPerformanceItem,
@@ -22,6 +24,7 @@ import type {
   UiThemeAccent,
 } from '../types';
 import {exportReportsToExcel} from '../utils/excelExport';
+import {ServiceDemandForecastWidget} from './ServiceDemandForecastWidget';
 
 interface ReportsViewProps {
   cases?: CaseRecordView[];
@@ -69,6 +72,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [isPrinting, setIsPrinting] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(false);
   const [printPreviewMode, setPrintPreviewMode] = useState(false);
+  const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
   const effectiveDark = isDark && !(isPrinting || printPreviewMode);
   const isLightPaper = isPrinting || printPreviewMode;
 
@@ -127,6 +131,27 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const workerSvgRef = useRef<SVGSVGElement | null>(null);
   const workerHBarContainerRef = useRef<HTMLDivElement | null>(null);
   const workerHBarSvgRef = useRef<SVGSVGElement | null>(null);
+  const workerRadarContainerRef = useRef<HTMLDivElement | null>(null);
+  const workerRadarSvgRef = useRef<SVGSVGElement | null>(null);
+  const responseContainerRef = useRef<HTMLDivElement | null>(null);
+  const responseSvgRef = useRef<SVGSVGElement | null>(null);
+  const workerWeeklyContainerRef = useRef<HTMLDivElement | null>(null);
+  const workerWeeklySvgRef = useRef<SVGSVGElement | null>(null);
+  const stageDurationContainerRef = useRef<HTMLDivElement | null>(null);
+  const stageDurationSvgRef = useRef<SVGSVGElement | null>(null);
+
+  const [selectedRadarWorkerId, setSelectedRadarWorkerId] = useState<string>('team_avg');
+  const [hoveredResponse, setHoveredResponse] = useState<MonthlyReportPoint | null>(null);
+  const [hoveredWorkerWeekly, setHoveredWorkerWeekly] = useState<CaseWorkerPerformanceItem | null>(null);
+  const [stageDurationViewMode, setStageDurationViewMode] = useState<'darolahsan' | 'edalat' | 'all'>('all');
+  const [hoveredStageDuration, setHoveredStageDuration] = useState<{
+    stageKey: string;
+    stageLabel: string;
+    workerName: string;
+    workerId: string;
+    institution: InstitutionId;
+    days: number;
+  } | null>(null);
 
   const [containerWidths, setContainerWidths] = useState({
     growth: 540,
@@ -135,6 +160,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     income: 540,
     worker: 580,
     workerHBar: 760,
+    workerRadar: 500,
+    response: 540,
+    workerWeekly: 580,
+    stageDuration: 760,
   });
 
   useEffect(() => {
@@ -171,7 +200,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     const incomeEl = incomeContainerRef.current;
     const workerEl = workerContainerRef.current;
     const workerHBarEl = workerHBarContainerRef.current;
-    if (!growthEl && !tierEl && !pieEl && !incomeEl && !workerEl && !workerHBarEl) return;
+    const workerRadarEl = workerRadarContainerRef.current;
+    const responseEl = responseContainerRef.current;
+    const workerWeeklyEl = workerWeeklyContainerRef.current;
+    const stageDurationEl = stageDurationContainerRef.current;
+    if (!growthEl && !tierEl && !pieEl && !incomeEl && !workerEl && !workerHBarEl && !workerRadarEl && !responseEl && !workerWeeklyEl && !stageDurationEl) return;
 
     const updateWidths = () => {
       setContainerWidths({
@@ -181,6 +214,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         income: incomeEl ? Math.max(300, Math.floor(incomeEl.clientWidth)) : 540,
         worker: workerEl ? Math.max(300, Math.floor(workerEl.clientWidth)) : 580,
         workerHBar: workerHBarEl ? Math.max(300, Math.floor(workerHBarEl.clientWidth)) : 760,
+        workerRadar: workerRadarEl ? Math.max(300, Math.floor(workerRadarEl.clientWidth)) : 500,
+        response: responseEl ? Math.max(300, Math.floor(responseEl.clientWidth)) : 540,
+        workerWeekly: workerWeeklyEl ? Math.max(300, Math.floor(workerWeeklyEl.clientWidth)) : 580,
+        stageDuration: stageDurationEl ? Math.max(300, Math.floor(stageDurationEl.clientWidth)) : 760,
       });
     };
 
@@ -192,6 +229,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     if (incomeEl) observer.observe(incomeEl);
     if (workerEl) observer.observe(workerEl);
     if (workerHBarEl) observer.observe(workerHBarEl);
+    if (workerRadarEl) observer.observe(workerRadarEl);
+    if (responseEl) observer.observe(responseEl);
+    if (workerWeeklyEl) observer.observe(workerWeeklyEl);
+    if (stageDurationEl) observer.observe(stageDurationEl);
     return () => observer.disconnect();
   }, [loading]);
 
@@ -364,6 +405,148 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       .on('mouseenter', (_event, d) => setHoveredGrowth(d))
       .on('mouseleave', () => setHoveredGrowth(null));
   }, [report, containerWidths.growth, effectiveDark, themeAccent]);
+
+  // Chart 8: D3.js Response Time Trend Line Chart
+  useEffect(() => {
+    if (!report || !responseSvgRef.current) return;
+    const data = report.series;
+    const width = containerWidths.response;
+    const height = 290;
+    const margin = {top: 24, right: 24, bottom: 42, left: 46};
+    const innerWidth = Math.max(120, width - margin.left - margin.right);
+    const innerHeight = height - margin.top - margin.bottom;
+
+    const svg = d3.select(responseSvgRef.current);
+    svg.selectAll('*').remove();
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', width).attr('height', height);
+
+    const defs = svg.append('defs');
+    const areaGradient = defs
+      .append('linearGradient')
+      .attr('id', 'responseAreaFill')
+      .attr('x1', '0%')
+      .attr('y1', '0%')
+      .attr('x2', '0%')
+      .attr('y2', '100%');
+    areaGradient.append('stop').attr('offset', '0%').attr('stop-color', '#f59e0b').attr('stop-opacity', effectiveDark ? 0.32 : 0.24);
+    areaGradient.append('stop').attr('offset', '100%').attr('stop-color', '#f59e0b').attr('stop-opacity', 0.02);
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const x = d3
+      .scalePoint<string>()
+      .domain(data.map((d) => d.monthLabel))
+      .range([0, innerWidth])
+      .padding(0.25);
+
+    const maxVal = d3.max(data, (d) => d.avgResponseDays) ?? 20;
+    const y = d3
+      .scaleLinear()
+      .domain([0, Math.ceil(maxVal * 1.25)])
+      .nice()
+      .range([innerHeight, 0]);
+
+    // Horizontal grid lines
+    g.append('g')
+      .attr('class', 'grid')
+      .call(
+        d3
+          .axisLeft(y)
+          .ticks(5)
+          .tickSize(-innerWidth)
+          .tickFormat(() => ''),
+      )
+      .call((grid) => grid.select('.domain').remove())
+      .call((grid) =>
+        grid.selectAll('.tick line').attr('stroke', chartColors.gridStroke).attr('stroke-dasharray', '3,3'),
+      );
+
+    // X Axis
+    g.append('g')
+      .attr('transform', `translate(0,${innerHeight})`)
+      .call(d3.axisBottom(x).tickSize(0).tickPadding(12))
+      .call((axis) => axis.select('.domain').attr('stroke', chartColors.axisStroke))
+      .call((axis) =>
+        axis
+          .selectAll('text')
+          .attr('fill', chartColors.textAxis)
+          .style('font-family', 'inherit')
+          .style('font-size', '11px'),
+      );
+
+    // Y Axis
+    g.append('g')
+      .call(
+        d3
+          .axisLeft(y)
+          .ticks(5)
+          .tickFormat((val) => `${toPersianNum(Number(val))} روز`),
+      )
+      .call((axis) => axis.select('.domain').remove())
+      .call((axis) => axis.selectAll('.tick line').remove())
+      .call((axis) =>
+        axis
+          .selectAll('text')
+          .attr('fill', chartColors.textMuted)
+          .style('font-family', 'inherit')
+          .style('font-size', '11px'),
+      );
+
+    // Area path
+    const areaGen = d3
+      .area<MonthlyReportPoint>()
+      .x((d) => x(d.monthLabel) ?? 0)
+      .y0(innerHeight)
+      .y1((d) => y(d.avgResponseDays))
+      .curve(d3.curveMonotoneX);
+
+    g.append('path')
+      .datum(data)
+      .attr('fill', 'url(#responseAreaFill)')
+      .attr('d', areaGen);
+
+    // Line path
+    const lineGen = d3
+      .line<MonthlyReportPoint>()
+      .x((d) => x(d.monthLabel) ?? 0)
+      .y((d) => y(d.avgResponseDays))
+      .curve(d3.curveMonotoneX);
+
+    g.append('path')
+      .datum(data)
+      .attr('fill', 'none')
+      .attr('stroke', '#f59e0b')
+      .attr('stroke-width', 2.5)
+      .attr('d', lineGen);
+
+    // Data point nodes
+    const nodes = g
+      .selectAll('.response-node')
+      .data(data)
+      .enter()
+      .append('g')
+      .attr('class', 'response-node cursor-pointer')
+      .attr('transform', (d) => `translate(${x(d.monthLabel) ?? 0},${y(d.avgResponseDays)})`)
+      .on('mouseenter', (_event, d) => setHoveredResponse(d))
+      .on('mouseleave', () => setHoveredResponse(null));
+
+    nodes
+      .append('circle')
+      .attr('r', 5)
+      .attr('fill', chartColors.nodeBg)
+      .attr('stroke', '#f59e0b')
+      .attr('stroke-width', 2.5);
+
+    nodes
+      .append('text')
+      .attr('y', -11)
+      .attr('text-anchor', 'middle')
+      .attr('fill', chartColors.textPrimary)
+      .style('font-family', 'inherit')
+      .style('font-size', '11px')
+      .style('font-weight', '600')
+      .text((d) => `${toPersianNum(d.avgResponseDays)} روز`);
+  }, [report, containerWidths.response, effectiveDark, themeAccent]);
 
   // Chart 2: D3.js Case Tier Distribution (Stacked or Grouped Bar Chart)
   useEffect(() => {
@@ -1122,6 +1305,165 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     themeAccent,
   ]);
 
+  // Chart: Average Case Duration in 6 Workflow Stages per Caseworker
+  useEffect(() => {
+    if (!report || !stageDurationSvgRef.current) return;
+    const workers = report.caseWorkerPerformance.filter(
+      (w) => stageDurationViewMode === 'all' || w.institution === stageDurationViewMode
+    );
+    if (workers.length === 0) return;
+
+    const width = containerWidths.stageDuration;
+    const height = 340;
+    const margin = {top: 32, right: 30, bottom: 56, left: 52};
+    const innerWidth = Math.max(160, width - margin.left - margin.right);
+    const innerHeight = height - margin.top - margin.bottom;
+
+    const svg = d3.select(stageDurationSvgRef.current);
+    svg.selectAll('*').remove();
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', width).attr('height', height);
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const stagesData = [
+      {key: 'stage1', label: 'مرحله ۱: پذیرش'},
+      {key: 'stage2', label: 'مرحله ۲: ارزیابی'},
+      {key: 'stage3', label: 'مرحله ۳: برنامه'},
+      {key: 'stage4', label: 'مرحله ۴: اجرا'},
+      {key: 'stage5', label: 'مرحله ۵: پایش'},
+      {key: 'stage6', label: 'مرحله ۶: خروج'},
+    ];
+
+    const x0 = d3
+      .scaleBand<string>()
+      .domain(stagesData.map((s) => s.label))
+      .range([0, innerWidth])
+      .padding(0.2);
+
+    const x1 = d3
+      .scaleBand<string>()
+      .domain(workers.map((w) => w.name))
+      .range([0, x0.bandwidth()])
+      .padding(0.06);
+
+    const maxDays =
+      d3.max(workers, (w) =>
+        Math.max(
+          w.stageDurations.stage1,
+          w.stageDurations.stage2,
+          w.stageDurations.stage3,
+          w.stageDurations.stage4,
+          w.stageDurations.stage5,
+          w.stageDurations.stage6,
+        ),
+      ) ?? 55;
+
+    const y = d3
+      .scaleLinear()
+      .domain([0, Math.ceil(maxDays * 1.18)])
+      .nice()
+      .range([innerHeight, 0]);
+
+    // Grid lines
+    g.append('g')
+      .call(
+        d3
+          .axisLeft(y)
+          .ticks(5)
+          .tickSize(-innerWidth)
+          .tickFormat(() => ''),
+      )
+      .call((grid) => grid.select('.domain').remove())
+      .call((grid) =>
+        grid.selectAll('.tick line').attr('stroke', chartColors.gridStroke).attr('stroke-dasharray', '3,3'),
+      );
+
+    // X Axis
+    g.append('g')
+      .attr('transform', `translate(0,${innerHeight})`)
+      .call(d3.axisBottom(x0).tickSize(0).tickPadding(12))
+      .call((axis) => axis.select('.domain').attr('stroke', chartColors.axisStroke))
+      .call((axis) =>
+        axis
+          .selectAll('text')
+          .attr('fill', chartColors.textAxis)
+          .style('font-family', 'inherit')
+          .style('font-size', innerWidth < 520 ? '9px' : '11px')
+          .style('font-weight', '600'),
+      );
+
+    // Y Axis
+    g.append('g')
+      .call(
+        d3
+          .axisLeft(y)
+          .ticks(5)
+          .tickFormat((val) => `${toPersianNum(Number(val))} ر`),
+      )
+      .call((axis) => axis.select('.domain').remove())
+      .call((axis) => axis.selectAll('.tick line').remove())
+      .call((axis) =>
+        axis
+          .selectAll('text')
+          .attr('fill', chartColors.textMuted)
+          .style('font-family', 'inherit')
+          .style('font-size', '11px'),
+      );
+
+    // Y Axis Title
+    g.append('text')
+      .attr('x', 0)
+      .attr('y', -14)
+      .attr('text-anchor', 'start')
+      .attr('fill', chartColors.textMuted)
+      .style('font-family', 'inherit')
+      .style('font-size', '10px')
+      .text('مدت حضور (روز)');
+
+    const workerPalette = [accentHex, chartColors.secondaryLine, '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+    const stageGroups = g
+      .selectAll('.stage-group')
+      .data(stagesData)
+      .enter()
+      .append('g')
+      .attr('transform', (d) => `translate(${x0(d.label) ?? 0},0)`);
+
+    stageGroups
+      .selectAll('rect')
+      .data((stage) =>
+        workers.map((w) => ({
+          stageKey: stage.key,
+          stageLabel: stage.label,
+          workerName: w.name,
+          workerId: w.id,
+          institution: w.institution,
+          days: w.stageDurations[stage.key as keyof typeof w.stageDurations],
+        })),
+      )
+      .enter()
+      .append('rect')
+      .attr('x', (d) => x1(d.workerName) ?? 0)
+      .attr('y', (d) => y(d.days))
+      .attr('width', x1.bandwidth())
+      .attr('height', (d) => Math.max(0, innerHeight - y(d.days)))
+      .attr('rx', 3)
+      .attr('fill', (_d, i) => workerPalette[i % workerPalette.length])
+      .attr('opacity', (d) =>
+        hoveredStageDuration && hoveredStageDuration.workerId !== d.workerId ? 0.45 : 0.92,
+      )
+      .style('cursor', 'pointer')
+      .on('mouseenter', (_event, d) => setHoveredStageDuration(d))
+      .on('mouseleave', () => setHoveredStageDuration(null));
+  }, [
+    report,
+    stageDurationViewMode,
+    containerWidths.stageDuration,
+    hoveredStageDuration,
+    effectiveDark,
+    themeAccent,
+  ]);
+
   const sortedCurrentMonthWorkers = useMemo(() => {
     if (!report?.caseWorkerPerformance) return [];
     const copy = [...report.caseWorkerPerformance];
@@ -1395,6 +1737,162 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     themeAccent,
   ]);
 
+  // Chart 7: D3.js Radar Chart for Case Worker 5 Key Performance Indicators
+  useEffect(() => {
+    if (!report || report.caseWorkerPerformance.length === 0 || !workerRadarSvgRef.current) return;
+    const workers = report.caseWorkerPerformance;
+    const width = containerWidths.workerRadar;
+    const height = 360;
+    const margin = {top: 40, right: 50, bottom: 40, left: 50};
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    const cx = innerWidth / 2 + margin.left;
+    const cy = innerHeight / 2 + margin.top;
+    const radius = Math.min(innerWidth, innerHeight) / 2 - 24;
+
+    const svg = d3.select(workerRadarSvgRef.current);
+    svg.selectAll('*').remove();
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', width).attr('height', height);
+
+    const axes = [
+      {key: 'recordSpeedScore', label: 'سرعت ثبت پرونده'},
+      {key: 'assessmentAccuracyScore', label: 'دقت در ارزیابی'},
+      {key: 'onTimeFollowUpScore', label: 'پیگیری به‌موقع'},
+      {key: 'conflictResolutionScore', label: 'حل‌وفصل تعارضات'},
+      {key: 'documentationQualityScore', label: 'کیفیت مستندسازی'},
+    ];
+
+    const levels = [25, 50, 75, 100];
+    const gridColor = effectiveDark ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.25)';
+    const textColor = chartColors.textPrimary;
+    const mutedTextColor = chartColors.textMuted;
+
+    // Draw concentric polygon grid levels
+    levels.forEach((lvl) => {
+      const lvlR = (radius * lvl) / 100;
+      const points = axes.map((_, i) => {
+        const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+        return [cx + lvlR * Math.cos(angle), cy + lvlR * Math.sin(angle)];
+      });
+      svg.append('polygon')
+        .attr('points', points.map((p) => p.join(',')).join(' '))
+        .attr('fill', 'none')
+        .attr('stroke', gridColor)
+        .attr('stroke-width', lvl === 100 ? 1.5 : 1)
+        .attr('stroke-dasharray', lvl === 100 ? 'none' : '3,3');
+
+      if (lvl < 100) {
+        svg.append('text')
+          .attr('x', cx + 4)
+          .attr('y', cy - lvlR)
+          .attr('fill', mutedTextColor)
+          .style('font-family', 'inherit')
+          .style('font-size', '9px')
+          .text(toPersianNum(lvl));
+      }
+    });
+
+    // Draw axis lines and labels
+    axes.forEach((axis, i) => {
+      const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+      const x2 = cx + radius * Math.cos(angle);
+      const y2 = cy + radius * Math.sin(angle);
+
+      svg.append('line')
+        .attr('x1', cx)
+        .attr('y1', cy)
+        .attr('x2', x2)
+        .attr('y2', y2)
+        .attr('stroke', gridColor)
+        .attr('stroke-width', 1);
+
+      const labelDist = radius + 22;
+      const lx = cx + labelDist * Math.cos(angle);
+      const ly = cy + labelDist * Math.sin(angle);
+      const anchor = Math.abs(Math.cos(angle)) < 0.2 ? 'middle' : Math.cos(angle) > 0 ? 'start' : 'end';
+
+      svg.append('text')
+        .attr('x', lx)
+        .attr('y', ly + 4)
+        .attr('text-anchor', anchor)
+        .attr('fill', textColor)
+        .style('font-family', 'inherit')
+        .style('font-size', '11px')
+        .style('font-weight', '600')
+        .text(axis.label);
+    });
+
+    // Determine target scores (either selected worker or team average)
+    let activeScores: Record<string, number> = {};
+    let activeTitle = '';
+    if (selectedRadarWorkerId === 'team_avg') {
+      activeTitle = 'میانگین تیم مددکاری';
+      axes.forEach((axis) => {
+        const sum = d3.sum(workers, (w) => (w as any)[axis.key] || 85);
+        activeScores[axis.key] = Math.round(sum / workers.length);
+      });
+    } else {
+      const found = workers.find((w) => w.id === selectedRadarWorkerId) || workers[0];
+      activeTitle = `${found.name} (${found.institutionLabel})`;
+      axes.forEach((axis) => {
+        activeScores[axis.key] = (found as any)[axis.key] || 85;
+      });
+    }
+
+    // Compute polygon coordinates for active scores
+    const polygonPoints = axes.map((axis, i) => {
+      const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+      const val = Math.max(0, Math.min(100, activeScores[axis.key] || 0));
+      const dist = (radius * val) / 100;
+      return {
+        x: cx + dist * Math.cos(angle),
+        y: cy + dist * Math.sin(angle),
+        val,
+      };
+    });
+
+    // Draw filled polygon
+    svg.append('polygon')
+      .attr('points', polygonPoints.map((p) => `${p.x},${p.y}`).join(' '))
+      .attr('fill', accentHex)
+      .attr('fill-opacity', 0.25)
+      .attr('stroke', accentHex)
+      .attr('stroke-width', 2.5);
+
+    // Draw vertex dots and values
+    polygonPoints.forEach((p, i) => {
+      svg.append('circle')
+        .attr('cx', p.x)
+        .attr('cy', p.y)
+        .attr('r', 4.5)
+        .attr('fill', accentHex)
+        .attr('stroke', effectiveDark ? '#0f172a' : '#ffffff')
+        .attr('stroke-width', 1.5);
+
+      svg.append('text')
+        .attr('x', p.x + (Math.cos((i * 2 * Math.PI) / 5 - Math.PI / 2) * 14))
+        .attr('y', p.y + (Math.sin((i * 2 * Math.PI) / 5 - Math.PI / 2) * 14))
+        .attr('text-anchor', 'middle')
+        .attr('dy', '0.35em')
+        .attr('fill', textColor)
+        .style('font-family', 'inherit')
+        .style('font-size', '10px')
+        .style('font-weight', '700')
+        .text(toPersianNum(p.val));
+    });
+
+    // Center title or badge
+    svg.append('text')
+      .attr('x', cx)
+      .attr('y', cy - radius - 16)
+      .attr('text-anchor', 'middle')
+      .attr('fill', accentHex)
+      .style('font-family', 'inherit')
+      .style('font-size', '12px')
+      .style('font-weight', '700')
+      .text(activeTitle);
+  }, [report, selectedRadarWorkerId, containerWidths.workerRadar, effectiveDark, themeAccent]);
+
   const distTotal = report ? Math.max(1, report.currentDistribution.total) : 1;
 
   // Listen to browser print lifecycle to restore dark-mode SVG colors cleanly after printing
@@ -1535,11 +2033,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     </section>
     <div class="charts-2">
       <section class="card"><h2>روند رشد خانوارهای خوداتکا (۶ ماه اخیر)</h2><div dir="ltr">${serializeSvg(growthSvgRef)}</div></section>
-      <section class="card"><h2>توزیع درجه فوریت پرونده‌ها</h2><div dir="ltr">${serializeSvg(tierSvgRef)}</div></section>
+      <section class="card"><h2>تحلیل زمان پاسخگویی و سرعت ثبت پرونده‌ها (۶ ماه اخیر)</h2><div dir="ltr">${serializeSvg(responseSvgRef)}</div></section>
     </div>
     <div class="charts-2">
+      <section class="card"><h2>توزیع درجه فوریت پرونده‌ها</h2><div dir="ltr">${serializeSvg(tierSvgRef)}</div></section>
       <section class="card"><h2>توزیع وضعیت اشتغال و پوشش بیمه‌ای</h2><div dir="ltr">${serializeSvg(pieSvgRef)}</div></section>
-      <section class="card"><h2>توزیع سطح درآمد ماهانه خانوارها</h2><div dir="ltr">${serializeSvg(incomeSvgRef)}</div></section>
     </div>
     <section class="card">
       <h2>تعداد پرونده‌های بررسی‌شده توسط هر مددکار در ماه جاری (${escapeHtml(report.currentMonthPeriodLabel)})</h2>
@@ -1808,6 +2306,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <Printer className="w-3.5 h-3.5" />
               {isPrinting ? 'در حال آماده‌سازی PDF...' : 'دریافت خروجی PDF'}
             </button>
+
+            <button
+              type="button"
+              onClick={() => setIsBoardModalOpen(true)}
+              className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-900 dark:bg-teal-700 hover:bg-slate-800 dark:hover:bg-teal-800 text-white transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-xs"
+            >
+              <Award className="w-4 h-4" />
+              <span>گزارش هیئت مدیره</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1999,6 +2506,44 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </div>
             </section>
           </div>
+
+          {/* Chart 8 Card: Response Time Trend Analysis & Bottlenecks */}
+          <section className={`${cardSurface} border rounded-xl p-6 flex flex-col justify-between space-y-4 print-avoid-break print-light-surface`}>
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b ${borderRule} pb-4`}>
+              <div>
+                <h2 className={`text-base font-semibold ${headingTone}`}>
+                  تحلیل زمان پاسخگویی و سرعت ثبت پرونده‌ها (۶ ماه اخیر)
+                </h2>
+                <p className={`text-xs mt-0.5 ${mutedTone}`}>
+                  شناسایی گلوگاه‌های عملیاتی و روند کاهش میانگین روزهای انتظار از پذیرش اولیه تا تکمیل ارزیابی معیشتی
+                </p>
+              </div>
+              <div className={`flex items-center gap-4 text-xs shrink-0 ${legendTone}`}>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-3 h-0.5 bg-amber-500 inline-block" />
+                  میانگین روزهای انتظار (ثبت تا ارزیابی)
+                </span>
+              </div>
+            </div>
+
+            <div ref={responseContainerRef} className="w-full overflow-hidden" dir="ltr">
+              <svg ref={responseSvgRef} className="w-full h-auto block" role="img" aria-label="نمودار روند میانگین زمان پاسخگویی در ۶ ماه گذشته" />
+            </div>
+
+            <div className={`pt-3 border-t ${borderRule} text-xs ${mutedTone} min-h-[2.25rem] flex items-center justify-between print:hidden`}>
+              {hoveredResponse ? (
+                <>
+                  <span className={`font-semibold ${headingTone}`}>{hoveredResponse.monthLabel}</span>
+                  <span className="tabular-nums">
+                    میانگین زمان پاسخگویی: <strong className="text-amber-600 dark:text-amber-400">{toPersianNum(hoveredResponse.avgResponseDays)} روز</strong> ·
+                    رشد خوداتکایی تجمعی: <strong>{toPersianNum(hoveredResponse.graduatedCumulative)} خانوار</strong>
+                  </span>
+                </>
+              ) : (
+                <span>برای مشاهده تحلیل گلوگاه‌های هر ماه، نشانگر را روی نقاط نمودار قرار دهید.</span>
+              )}
+            </div>
+          </section>
 
           {/* Chart 3: Household Employment Status Pie / Donut Chart */}
           <section className={`${cardSurface} border rounded-xl p-6 space-y-6 print-avoid-break print-light-surface`}>
@@ -2374,6 +2919,170 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           </section>
 
+          {/* Chart: Average Case Duration in 6 Workflow Stages per Caseworker */}
+          <section className={`${cardSurface} border rounded-xl p-6 space-y-6 print-avoid-break print-light-surface`}>
+            <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b ${borderRule} pb-4`}>
+              <div>
+                <h2 className={`text-base font-semibold ${headingTone}`}>
+                  میانگین مدت زمان حضور پرونده‌ها در مراحل ششگانه به تفکیک مددکاران
+                </h2>
+                <p className={`text-xs mt-1 ${mutedTone}`}>
+                  ارزیابی دقیق کارایی در مدیریت مورد و زمان سپری‌شده در هر یک از مراحل جریان کاری (پذیرش، ارزیابی، برنامه، اجرا، پایش و خروج) به تفکیک مددکاران
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg shrink-0 print:hidden">
+                <button
+                  type="button"
+                  onClick={() => setStageDurationViewMode('all')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                    stageDurationViewMode === 'all'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  کل تیم
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStageDurationViewMode('darolahsan')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                    stageDurationViewMode === 'darolahsan'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  دارالاحسان
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStageDurationViewMode('edalat')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                    stageDurationViewMode === 'edalat'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  عدالت و برابری
+                </button>
+              </div>
+            </div>
+
+            <div ref={stageDurationContainerRef} className="w-full overflow-hidden" dir="ltr">
+              <svg
+                ref={stageDurationSvgRef}
+                className="w-full h-auto block"
+                role="img"
+                aria-label="نمودار مدت زمان متوسط حضور پرونده‌ها در مراحل ششگانه به تفکیک مددکاران"
+              />
+            </div>
+
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t ${borderRule} text-xs ${mutedTone}`}>
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-xs inline-block" style={{backgroundColor: accentHex}} />
+                  مددکاران برتر (دارالاحسان / عدالت)
+                </span>
+                <span>واحد اندازه گیری: متوسط روزهای ماندگاری در هر مرحله</span>
+              </div>
+
+              <div className="min-h-[1.5rem] flex items-center print:hidden">
+                {hoveredStageDuration ? (
+                  <span className={`font-medium tabular-nums ${headingTone}`}>
+                    {hoveredStageDuration.workerName} در {hoveredStageDuration.stageLabel}:{' '}
+                    <strong className="text-amber-600 dark:text-amber-400">{toPersianNum(hoveredStageDuration.days)} روز</strong>
+                  </span>
+                ) : (
+                  <span>برای مشاهده جزئیات مدت ماندگاری هر مرحله به تفکیک مددکار، نشانگر را روی ستون‌ها قرار دهید.</span>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* D3.js Radar Chart Card for 5 Key Performance Indicators */}
+          <section className={`${cardSurface} border rounded-xl p-6 space-y-6 print-avoid-break print-light-surface`}>
+            <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b ${borderRule} pb-4`}>
+              <div>
+                <h2 className={`text-base font-semibold ${headingTone}`}>
+                  ارزیابی راداری عملکرد مددکاران بر اساس ۵ شاخص کلیدی
+                </h2>
+                <p className={`text-xs mt-1 ${mutedTone}`}>
+                  مقایسه چندبعدی عملکرد مددکاران در شاخص‌های: سرعت ثبت پرونده، دقت در ارزیابی، پیگیری به‌موقع، حل‌وفصل تعارضات و کیفیت مستندسازی.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0 print:hidden">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRadarWorkerId('team_avg')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+                    selectedRadarWorkerId === 'team_avg'
+                      ? 'bg-slate-900 dark:bg-teal-700 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  میانگین تیم
+                </button>
+                {report.caseWorkerPerformance.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => setSelectedRadarWorkerId(w.id)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+                      selectedRadarWorkerId === w.id
+                        ? 'bg-teal-700 text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {w.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div ref={workerRadarContainerRef} className="w-full flex justify-center overflow-hidden" dir="ltr">
+              <svg
+                ref={workerRadarSvgRef}
+                className="w-full max-w-[520px] h-auto block"
+                role="img"
+                aria-label="نمودار راداری ۵ شاخص کلیدی عملکرد مددکاران"
+              />
+            </div>
+
+            <div className={`pt-4 border-t ${borderRule} flex flex-wrap items-center justify-around gap-4 text-xs tabular-nums ${mutedTone}`}>
+              <div>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">سرعت ثبت پرونده:</span>{' '}
+                {selectedRadarWorkerId === 'team_avg'
+                  ? `${Math.round(d3.mean(report.caseWorkerPerformance, (w) => w.recordSpeedScore) || 90)}٪`
+                  : `${report.caseWorkerPerformance.find((w) => w.id === selectedRadarWorkerId)?.recordSpeedScore || 0}٪`}
+              </div>
+              <div>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">دقت در ارزیابی:</span>{' '}
+                {selectedRadarWorkerId === 'team_avg'
+                  ? `${Math.round(d3.mean(report.caseWorkerPerformance, (w) => w.assessmentAccuracyScore) || 92)}٪`
+                  : `${report.caseWorkerPerformance.find((w) => w.id === selectedRadarWorkerId)?.assessmentAccuracyScore || 0}٪`}
+              </div>
+              <div>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">پیگیری به‌موقع:</span>{' '}
+                {selectedRadarWorkerId === 'team_avg'
+                  ? `${Math.round(d3.mean(report.caseWorkerPerformance, (w) => w.onTimeFollowUpScore) || 90)}٪`
+                  : `${report.caseWorkerPerformance.find((w) => w.id === selectedRadarWorkerId)?.onTimeFollowUpScore || 0}٪`}
+              </div>
+              <div>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">حل‌وفصل تعارضات:</span>{' '}
+                {selectedRadarWorkerId === 'team_avg'
+                  ? `${Math.round(d3.mean(report.caseWorkerPerformance, (w) => w.conflictResolutionScore) || 89)}٪`
+                  : `${report.caseWorkerPerformance.find((w) => w.id === selectedRadarWorkerId)?.conflictResolutionScore || 0}٪`}
+              </div>
+              <div>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">مستندسازی:</span>{' '}
+                {selectedRadarWorkerId === 'team_avg'
+                  ? `${Math.round(d3.mean(report.caseWorkerPerformance, (w) => w.documentationQualityScore) || 92)}٪`
+                  : `${report.caseWorkerPerformance.find((w) => w.id === selectedRadarWorkerId)?.documentationQualityScore || 0}٪`}
+              </div>
+            </div>
+          </section>
+
           {/* Chart 5: Case Worker Monthly Performance Dashboard (D3.js) */}
           <section className={`${cardSurface} border rounded-xl p-6 space-y-6 print-avoid-break print-light-surface`}>
             <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b ${borderRule} pb-4`}>
@@ -2638,8 +3347,26 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </table>
             </div>
           </section>
+
+          {/* Service Demand Forecast Widget based on historical stage trends */}
+          <ServiceDemandForecastWidget
+            isDark={effectiveDark}
+            themeAccent={themeAccent}
+            onExportToast={onExportToast}
+          />
         </>
       )}
+
+      {/* Board of Directors Report Modal */}
+      <BoardOfDirectorsReportModal
+        isOpen={isBoardModalOpen}
+        onClose={() => setIsBoardModalOpen(false)}
+        activeInstitution={institutionFilter}
+        cases={cases}
+        preparedBy={preparedBy}
+        generatedAt={generatedAt}
+        onExportToast={onExportToast}
+      />
     </div>
   );
 };

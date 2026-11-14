@@ -20,6 +20,8 @@ import {
   Sun,
   Wallet,
   X,
+  BookOpen,
+  Database,
 } from 'lucide-react';
 import {AssessmentConsentView} from './components/AssessmentConsentView';
 import {InquiryView} from './components/InquiryView';
@@ -29,6 +31,8 @@ import {MicrofinanceGraduationView} from './components/MicrofinanceGraduationVie
 import {OverviewDashboard} from './components/OverviewDashboard';
 import {ReportsView} from './components/ReportsView';
 import {SecurityRoadmapView} from './components/SecurityRoadmapView';
+import {UserGuideModal} from './components/UserGuideModal';
+import {BackupRestoreModal} from './components/BackupRestoreModal';
 import {
   DEFAULT_TOAST_PREFERENCES,
   DEFAULT_UI_PREFERENCES,
@@ -229,6 +233,15 @@ export default function App() {
     () => authSession?.role || 'case_worker',
   );
 
+  useEffect(() => {
+    if (authSession) {
+      if (authSession.role !== 'privacy_officer' && authSession.role !== 'system_admin') {
+        setActiveInstitution(authSession.institution);
+        setActiveRole(authSession.role);
+      }
+    }
+  }, [authSession]);
+
   // Shared application state loaded from Express backend
   const [summary, setSummary] = useState<DashboardSummary>(INITIAL_SUMMARY);
   const [blocks, setBlocks] = useState<NaysarBlock[]>([]);
@@ -256,6 +269,19 @@ export default function App() {
   const [prefilledBlockId, setPrefilledBlockId] = useState('');
   const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
   const [activeWorkflowCaseId, setActiveWorkflowCaseId] = useState<string | null>(null);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isBackupOpen, setIsBackupOpen] = useState(false);
+
+  const handleRestoreData = (imported: {cases: CaseRecordView[]; blocks: NaysarBlock[]}) => {
+    setCases(imported.cases);
+    setBlocks(imported.blocks);
+    pushToast({
+      variant: 'success',
+      category: 'transaction',
+      title: 'بازیابی اطلاعات با موفقیت انجام شد',
+      description: `${imported.cases.length} پرونده از فایل پشتیبان سیستم دیگر بارگذاری شد.`,
+    });
+  };
 
   // Toast notification queue
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -677,6 +703,26 @@ export default function App() {
 
             <button
               type="button"
+              onClick={() => setIsGuideOpen(true)}
+              title="راهنمای استفاده از سامانه"
+              aria-label="راهنمای استفاده از سامانه"
+              className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <BookOpen className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsBackupOpen(true)}
+              title="پشتیبان‌گیری و بازیابی داده‌ها"
+              aria-label="پشتیبان‌گیری و بازیابی داده‌ها"
+              className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Database className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
               onClick={handleLogout}
               title="خروج از حساب کاربری"
               aria-label="خروج از حساب کاربری"
@@ -826,50 +872,57 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {/* Compact RBAC / Institution Switcher with Official Emblems */}
-            <div className="hidden md:flex items-center gap-0.5 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200/70 dark:border-slate-700/70">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveInstitution('darolahsan');
-                  if (activeRole === 'privacy_officer') setActiveRole('case_worker');
-                }}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 ${
-                  activeInstitution === 'darolahsan' && activeRole !== 'privacy_officer'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <InstitutionEmblem institution="darolahsan" size="xs" />
-                <span>دارالاحسان</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveInstitution('edalat');
-                  if (activeRole === 'privacy_officer') setActiveRole('case_worker');
-                }}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 ${
-                  activeInstitution === 'edalat' && activeRole !== 'privacy_officer'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <InstitutionEmblem institution="edalat" size="xs" />
-                <span>عدالت و برابری</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveRole('privacy_officer')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                  activeRole === 'privacy_officer'
-                    ? 'bg-slate-900 dark:bg-teal-700 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                ناظر امنیتی
-              </button>
-            </div>
+            {/* Dedicated Institution Security Access Badge or Switcher for Auditors */}
+            {authSession.role === 'privacy_officer' || authSession.role === 'system_admin' ? (
+              <div className="hidden md:flex items-center gap-0.5 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200/70 dark:border-slate-700/70">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveInstitution('darolahsan');
+                    if (activeRole === 'privacy_officer') setActiveRole('case_worker');
+                  }}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 ${
+                    activeInstitution === 'darolahsan' && activeRole !== 'privacy_officer'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <InstitutionEmblem institution="darolahsan" size="xs" />
+                  <span>دارالاحسان</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveInstitution('edalat');
+                    if (activeRole === 'privacy_officer') setActiveRole('case_worker');
+                  }}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 ${
+                    activeInstitution === 'edalat' && activeRole !== 'privacy_officer'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <InstitutionEmblem institution="edalat" size="xs" />
+                  <span>عدالت و برابری</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveRole('privacy_officer')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                    activeRole === 'privacy_officer'
+                      ? 'bg-slate-900 dark:bg-teal-700 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  ناظر امنیتی
+                </button>
+              </div>
+            ) : (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/50 rounded-lg border border-teal-200 dark:border-teal-800 text-xs font-semibold text-teal-900 dark:text-teal-200">
+                <InstitutionEmblem institution={activeInstitution} size="xs" />
+                <span>پایگاه اختصاصی {activeInstitution === 'darolahsan' ? 'مؤسسه دارالاحسان سنندج' : 'مؤسسه عدالت و برابری کردستان'}</span>
+              </div>
+            )}
 
             <span className="hidden xl:inline text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">
               {liveDateTime.date} · {liveDateTime.shortTime}
@@ -1148,6 +1201,23 @@ export default function App() {
         onChange={setUiPrefs}
         onTestToast={(item) => pushToast(item)}
         onClose={() => setThemeModalOpen(false)}
+      />
+
+      <UserGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+        isDark={isDark}
+      />
+
+      <BackupRestoreModal
+        isOpen={isBackupOpen}
+        onClose={() => setIsBackupOpen(false)}
+        cases={cases}
+        blocks={blocks}
+        onRestoreData={handleRestoreData}
+        onExportToast={(title, description) =>
+          pushToast({variant: 'success', category: 'transaction', title, description})
+        }
       />
 
       <ToastContainer
