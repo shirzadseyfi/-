@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>سامانه هم‌افزایی و مدیریت مورد نایسر | دارالاحسان و عدالت و برابری</title>
+    <meta
+      name="description"
+      content="سامانه مشترک استعلام امن کدملی، ارزیابی معیشتی بومی، مدیریت مورد ۶ مرحله‌ای و صندوق‌های خودیاری خرد میان مؤسسه خیریه دارالاحسان سنندج و مؤسسه خیریه عدالت و برابری کردستان در ناحیه منفصل شهری نایسر."
+    />
+    <meta property="og:title" content="سامانه هم‌افزایی و مدیریت مورد نایسر" />
+    <meta
+      property="og:description"
+      content="هماهنگی خدمات حمایتی، جلوگیری از موازی‌کاری با رمزنگاری یک‌طرفه کدملی و توانمندسازی پایدار خانوارهای نایسر سنندج."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Rubik:wght@400;500;600;700&family=Vazirmatn:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('naysar_ui_prefs');
+          var prefs = raw ? JSON.parse(raw) : {};
+          var mode = prefs.mode || 'light';
+          var isDark =
+            mode === 'dark' ||
+            (mode === 'system' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var root = document.documentElement;
+          if (isDark) root.classList.add('dark');
+          root.setAttribute('data-accent', prefs.accent || 'teal');
+          root.setAttribute('data-font', prefs.font || 'vazirmatn');
+          root.setAttribute('data-scale', prefs.scale || 'normal');
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-teal-100 selection:text-teal-900 dark:selection:bg-teal-900 dark:selection:text-teal-100 transition-colors duration-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

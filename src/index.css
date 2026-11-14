@@ -1,0 +1,179 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    font-family: "Vazirmatn", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    scroll-behavior: smooth;
+    font-size: 16px;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html[data-font="vazirmatn"] {
+    font-family: "Vazirmatn", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+
+  html[data-font="noto"] {
+    font-family: "Noto Sans Arabic", "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  html[data-font="rubik"] {
+    font-family: "Rubik", "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  html[data-font="almarai"] {
+    font-family: "Almarai", "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  html[data-scale="compact"] {
+    font-size: 14.5px;
+  }
+
+  html[data-scale="normal"] {
+    font-size: 16px;
+  }
+
+  html[data-scale="large"] {
+    font-size: 17.5px;
+  }
+
+  /* Dynamic Accent Theme Palettes (remapping teal brand tokens cleanly across the app) */
+  html[data-accent="blue"] {
+    --color-teal-50: #eff6ff;
+    --color-teal-100: #dbeafe;
+    --color-teal-200: #bfdbfe;
+    --color-teal-300: #93c5fd;
+    --color-teal-400: #60a5fa;
+    --color-teal-500: #3b82f6;
+    --color-teal-600: #2563eb;
+    --color-teal-700: #1d4ed8;
+    --color-teal-800: #1e40af;
+    --color-teal-900: #1e3a8a;
+    --color-teal-950: #172554;
+  }
+
+  html[data-accent="emerald"] {
+    --color-teal-50: #ecfdf5;
+    --color-teal-100: #d1fae5;
+    --color-teal-200: #a7f3d0;
+    --color-teal-300: #6ee7b7;
+    --color-teal-400: #34d399;
+    --color-teal-500: #10b981;
+    --color-teal-600: #059669;
+    --color-teal-700: #047857;
+    --color-teal-800: #065f46;
+    --color-teal-900: #064e3b;
+    --color-teal-950: #022c22;
+  }
+
+  html[data-accent="amber"] {
+    --color-teal-50: #fffbeb;
+    --color-teal-100: #fef3c7;
+    --color-teal-200: #fde68a;
+    --color-teal-300: #fcd34d;
+    --color-teal-400: #fbbf24;
+    --color-teal-500: #f59e0b;
+    --color-teal-600: #d97706;
+    --color-teal-700: #b45309;
+    --color-teal-800: #92400e;
+    --color-teal-900: #78350f;
+    --color-teal-950: #451a03;
+  }
+
+  html[data-accent="violet"] {
+    --color-teal-50: #f5f3ff;
+    --color-teal-100: #ede9fe;
+    --color-teal-200: #ddd6fe;
+    --color-teal-300: #c4b5fd;
+    --color-teal-400: #a78bfa;
+    --color-teal-500: #8b5cf6;
+    --color-teal-600: #7c3aed;
+    --color-teal-700: #6d28d9;
+    --color-teal-800: #5b21b6;
+    --color-teal-900: #4c1d95;
+    --color-teal-950: #2e1065;
+  }
+
+  code,
+  pre,
+  .font-mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 11mm;
+  }
+
+  html,
+  body,
+  html.dark,
+  html.dark body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    color-scheme: light !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-light-surface {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  .print-light-muted {
+    background-color: #f8fafc !important;
+    color: #334155 !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  body.printing-dossier .dossier-print-hide {
+    display: none !important;
+  }
+
+  body.printing-dossier .dossier-print-root {
+    position: static !important;
+    inset: auto !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  body.printing-dossier .dossier-print-panel {
+    position: static !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+}
+
