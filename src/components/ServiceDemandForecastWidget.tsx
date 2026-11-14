@@ -210,8 +210,8 @@ export const ServiceDemandForecastWidget: React.FC<ServiceDemandWidgetProps> = (
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-sm">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="text-center md:text-right space-y-1">
+          <div className="flex items-center justify-center md:justify-start gap-2">
             <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 tabular-nums">
               مدل‌سازی آماری پیش‌بینی
             </span>
@@ -222,12 +222,12 @@ export const ServiceDemandForecastWidget: React.FC<ServiceDemandWidgetProps> = (
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">
             پیش‌بینی تقاضای خدمات منطقه در ۳ ماه آینده (Service Demand Forecast)
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
             برآورد آماری حجم تقاضای خانوارها برای بسته‌های معیشتی، درمانی و اشتغال با توجه به سرعت جابجایی مراحل.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 justify-center md:justify-start">
           <div className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
             <span className="w-3 h-3 rounded-full bg-teal-700 inline-block" />
             <span>روند تاریخی واقعی</span>
