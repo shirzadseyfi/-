@@ -459,7 +459,8 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
     try {
       const raw = localStorage.getItem(`${AUTOSAVE_PREFIX}${activeInstitution}`);
       if (!raw) return;
-      const draft = JSON.parse(raw) as Partial<AssessmentDraftSnapshot>;
+      const draft = JSON.parse(raw) as Partial<AssessmentDraftSnapshot> | null;
+      if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return;
       const hasMeaningfulData =
         Boolean(draft.fullName?.trim()) ||
         Boolean(draft.nationalId?.trim()) ||

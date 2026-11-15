@@ -24,13 +24,34 @@ export const RecentActivityWidget: React.FC<RecentActivityWidgetProps> = ({
   // Extract or simulate last 5 important system activities
   const recentActivities = React.useMemo(() => {
     if (auditLogs && auditLogs.length > 0) {
+      const actionTitleMap: Record<AuditLogEntry['action'], string> = {
+        CASE_CREATED: 'ثبت پرونده حمایتی جدید',
+        STAGE_ADVANCED: 'ارتقای مرحله جریان کاری',
+        OVERLAP_FLAGGED: 'شناسایی و پیشگیری از هم‌پوشانی',
+        CONFLICT_RESOLVED: 'تعیین تکلیف هم‌پوشانی و مدل همکاری',
+        SHG_TRANSACTION: 'ثبت تراکنش صندوق خودیاری',
+        INQUIRY_HASH: 'استعلام حریم‌خصوصی کدملی',
+        CASE_UPDATED: 'به‌روزرسانی اطلاعات پرونده',
+      };
       return auditLogs.slice(0, 5).map((log) => ({
         id: log.id,
-        title: log.action === 'CASE_CREATED' ? 'ثبت پرونده حمایتی جدید' : log.action === 'STAGE_ADVANCED' ? 'ارتقای مرحله جریان کاری' : log.action === 'OVERLAP_FLAGGED' ? 'شناسایی و پیشگیری از هم‌پوشانی' : 'به‌روزرسانی اطلاعات مورد',
+        title: actionTitleMap[log.action] || 'به‌روزرسانی اطلاعات مورد',
         description: `بلوک ${log.blockName} · نتیجه: ${log.outcome}`,
         timestamp: log.timestamp,
-        actor: log.actorRole === 'privacy_officer' ? 'ناظر امنیتی' : log.actorRole === 'system_admin' ? 'مدیر سیستم' : 'مددکار ارشد',
-        institution: log.actorInstitution === 'darolahsan' ? 'دارالاحسان' : log.actorInstitution === 'edalat' ? 'عدالت' : 'مشترک',
+        actor:
+          log.actorRole === 'privacy_officer'
+            ? 'ناظر امنیتی'
+            : log.actorRole === 'system_admin'
+              ? 'مدیر سیستم'
+              : log.actorRole === 'executive_manager'
+                ? 'مدیرعامل مؤسسه'
+                : 'مددکار ارشد',
+        institution:
+          log.actorInstitution === 'darolahsan'
+            ? 'دارالاحسان'
+            : log.actorInstitution === 'edalat'
+              ? 'عدالت'
+              : 'مشترک',
       }));
     }
 

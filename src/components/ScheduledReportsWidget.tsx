@@ -26,7 +26,12 @@ export const ScheduledReportsWidget: React.FC<ScheduledReportsWidgetProps> = ({
   const [schedules, setSchedules] = useState<ScheduledReportItem[]>(() => {
     try {
       const saved = localStorage.getItem('naysar_scheduled_reports');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed as ScheduledReportItem[];
+        }
+      }
     } catch {}
     return [
       {

@@ -33,10 +33,20 @@ export const PeriodicReportsManager: React.FC<PeriodicReportsManagerProps> = ({
 }) => {
   const [reportType, setReportType] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
   const [scopeInst, setScopeInst] = useState<InstitutionId | 'all'>(activeInstitution);
+
+  useEffect(() => {
+    setScopeInst(activeInstitution);
+  }, [activeInstitution]);
+
   const [generatedReports, setGeneratedReports] = useState<PeriodicReportNotification[]>(() => {
     try {
       const saved = localStorage.getItem('naysar_periodic_reports_box');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed as PeriodicReportNotification[];
+        }
+      }
     } catch {}
     return [
       {

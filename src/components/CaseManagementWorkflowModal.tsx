@@ -244,7 +244,13 @@ export const CaseManagementWorkflowModal: React.FC<CaseManagementWorkflowModalPr
       const raw = localStorage.getItem(`naysar_workflow_draft_v1_${caseRecord.id}`);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.workflow) {
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed) &&
+          parsed.workflow &&
+          typeof parsed.workflow === 'object'
+        ) {
           setSavedLocalDraft(parsed);
           return;
         }

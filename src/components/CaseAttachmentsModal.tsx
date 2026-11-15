@@ -37,7 +37,12 @@ export const CaseAttachmentsModal: React.FC<CaseAttachmentsModalProps> = ({
     try {
       const saved = localStorage.getItem(`naysar_attachments_${caseItem.id}`);
       if (saved) {
-        setAttachments(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setAttachments(parsed as CaseAttachment[]);
+        } else {
+          setAttachments([]);
+        }
       } else {
         // Initial mock attachments if any
         setAttachments([
@@ -107,13 +112,40 @@ export const CaseAttachmentsModal: React.FC<CaseAttachmentsModalProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((t) => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [isOpen]);
+
   const startCamera = async () => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      onExportToast?.(
+        'دوربین در دسترس نیست',
+        'مرورگر یا محیط فعلی اجازه دسترسی به دوربین را نمی‌دهد. لطفاً تصویر را از گالری بارگذاری کنید.',
+      );
+      return;
+    }
     setIsCameraActive(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}});
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
+      } else {
+        stream.getTracks().forEach((t) => t.stop());
       }
     } catch {
       onExportToast?.('خطا در دسترسی به دوربین', 'امکان راه‌اندازی دوربین دستگاه وجود ندارد. لطفاً از گزینه آپلود تصویر استفاده کنید.');
@@ -132,20 +164,8 @@ export const CaseAttachmentsModal: React.FC<CaseAttachmentsModalProps> = ({
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-    // Stop tracks
-    const stream = video.srcObject as MediaStream;
-    stream?.getTracks().forEach((t) => t.stop());
-
-    setIsCameraActive(false);
+    stopCamera();
     handleAddAttachment(dataUrl, 'تصویر دوربین سند');
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((t) => t.stop());
-    }
-    setIsCameraActive(false);
   };
 
   const handleDeleteAttachment = (id: string) => {

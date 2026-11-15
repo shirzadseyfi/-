@@ -1421,6 +1421,14 @@ function sanitizeCaseForRole(
 async function startServer() {
   const app = express();
   app.use(express.json());
+  app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err instanceof SyntaxError && 'body' in (err as unknown as Record<string, unknown>)) {
+      return res.status(400).json({
+        error: 'ساختار JSON ارسالی نامعتبر است.',
+      });
+    }
+    return next(err);
+  });
 
   // 1. Dashboard Summary & Blocks
   app.get('/api/overview', (req, res) => {
@@ -1904,13 +1912,14 @@ async function startServer() {
 
   // 2. Privacy-Preserving SHA-256 + Salt National ID Inquiry
   app.post('/api/inquiry', (req, res) => {
-    const {nationalId, institution, role, blockId, needsMedicalSpecial} = req.body as {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as {
       nationalId?: string;
       institution?: InstitutionId;
       role?: UserRole;
       blockId?: string;
       needsMedicalSpecial?: boolean;
     };
+    const {nationalId, institution, role, blockId, needsMedicalSpecial} = body;
 
     const cleanId = normalizeDigits(nationalId || '');
     if (cleanId.length !== 10) {
@@ -2022,6 +2031,28 @@ async function startServer() {
 
   // 3. Create New Case with Informed Consent + 100-point Scoring + Exact Timestamp
   app.post('/api/cases', (req, res) => {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as {
+      nationalId?: string;
+      institution?: InstitutionId;
+      role?: UserRole;
+      blockId?: string;
+      fullName?: string;
+      phone?: string;
+      address?: string;
+      householdSize?: number;
+      headStatus?: string;
+      housingType?: string;
+      medicalNotes?: string;
+      caseWorkerNote?: string;
+      lastSupportType?: string;
+      visitDate?: string;
+      visitTime?: string;
+      stage?: CaseStage;
+      consentSigned?: boolean;
+      score?: WelfareScoreBreakdown;
+      servicePath?: ServicePath;
+      assessmentDetails?: AssessmentFormDetails;
+    };
     const {
       nationalId,
       institution,
@@ -2043,28 +2074,7 @@ async function startServer() {
       score,
       servicePath,
       assessmentDetails,
-    } = req.body as {
-      nationalId: string;
-      institution: InstitutionId;
-      role?: UserRole;
-      blockId: string;
-      fullName: string;
-      phone: string;
-      address: string;
-      householdSize: number;
-      headStatus: string;
-      housingType: string;
-      medicalNotes: string;
-      caseWorkerNote?: string;
-      lastSupportType?: string;
-      visitDate?: string;
-      visitTime?: string;
-      stage?: CaseStage;
-      consentSigned: boolean;
-      score: WelfareScoreBreakdown;
-      servicePath: ServicePath;
-      assessmentDetails?: AssessmentFormDetails;
-    };
+    } = body;
 
     if (!consentSigned) {
       return res.status(400).json({
@@ -2190,27 +2200,7 @@ async function startServer() {
   // 3b. Update Existing Case Assessment, Details, Stage & History
   app.put('/api/cases/:id', (req, res) => {
     const {id} = req.params;
-    const {
-      institution,
-      role,
-      blockId,
-      fullName,
-      phone,
-      address,
-      householdSize,
-      headStatus,
-      housingType,
-      medicalNotes,
-      caseWorkerNote,
-      lastSupportType,
-      visitDate,
-      visitTime,
-      stage,
-      consentSigned,
-      score,
-      servicePath,
-      assessmentDetails,
-    } = req.body as {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as {
       institution?: InstitutionId;
       role?: UserRole;
       blockId?: string;
@@ -2231,6 +2221,27 @@ async function startServer() {
       servicePath?: ServicePath;
       assessmentDetails?: AssessmentFormDetails;
     };
+    const {
+      institution,
+      role,
+      blockId,
+      fullName,
+      phone,
+      address,
+      householdSize,
+      headStatus,
+      housingType,
+      medicalNotes,
+      caseWorkerNote,
+      lastSupportType,
+      visitDate,
+      visitTime,
+      stage,
+      consentSigned,
+      score,
+      servicePath,
+      assessmentDetails,
+    } = body;
 
     const activeInstitution: InstitutionId = institution === 'edalat' ? 'edalat' : 'darolahsan';
     const activeRole: UserRole = role || 'case_worker';
@@ -2380,12 +2391,13 @@ async function startServer() {
   // 4. Advance Case Stage or Record Collaboration Resolution
   app.patch('/api/cases/:id/stage', (req, res) => {
     const {id} = req.params;
-    const {stage, institution, role, collaborationModel} = req.body as {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as {
       stage?: CaseStage;
       institution?: InstitutionId;
       role?: UserRole;
       collaborationModel?: CollaborationModel;
     };
+    const {stage, institution, role, collaborationModel} = body;
 
     const target = initialCases.find((c) => c.id === id);
     if (!target) {
@@ -2457,15 +2469,7 @@ async function startServer() {
   // 4b. Save Complete Step-by-Step Case Management Workflow Stage Data for a Beneficiary
   app.put('/api/cases/:id/workflow', (req, res) => {
     const {id} = req.params;
-    const {
-      institution,
-      role,
-      stageNumber,
-      workflow,
-      advanceToNextStage,
-      actionDateTime,
-      summaryNote,
-    } = req.body as {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as {
       institution?: InstitutionId;
       role?: UserRole;
       stageNumber?: CaseStage;
@@ -2474,6 +2478,15 @@ async function startServer() {
       actionDateTime?: string;
       summaryNote?: string;
     };
+    const {
+      institution,
+      role,
+      stageNumber,
+      workflow,
+      advanceToNextStage,
+      actionDateTime,
+      summaryNote,
+    } = body;
 
     const activeInstitution: InstitutionId = institution === 'edalat' ? 'edalat' : 'darolahsan';
     const activeRole: UserRole = role || 'case_worker';
@@ -2616,14 +2629,15 @@ async function startServer() {
 
   app.post('/api/shg/:groupId/members', (req, res) => {
     const {groupId} = req.params;
-    const {memberAlias, monthlySaving, loanAmount, businessType, guarantor1, guarantor2} = req.body as {
-      memberAlias: string;
-      monthlySaving: number;
-      loanAmount: number;
-      businessType: string;
-      guarantor1: string;
-      guarantor2: string;
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as {
+      memberAlias?: string;
+      monthlySaving?: number;
+      loanAmount?: number;
+      businessType?: string;
+      guarantor1?: string;
+      guarantor2?: string;
     };
+    const {memberAlias, monthlySaving, loanAmount, businessType, guarantor1, guarantor2} = body;
 
     const group = shgGroups.find((g) => g.id === groupId);
     if (!group) {

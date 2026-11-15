@@ -390,6 +390,16 @@ export default function App() {
   const handleRestoreData = (imported: {cases: CaseRecordView[]; blocks: NaysarBlock[]}) => {
     setCases(imported.cases);
     setBlocks(imported.blocks);
+    setSummary((prev) => ({
+      ...prev,
+      totalActiveCases: imported.cases.filter((c) => c.coverageStatus !== 'GRADUATED').length,
+      graduatedFamilies: imported.cases.filter((c) => c.coverageStatus === 'GRADUATED').length,
+      darolahsanCases: imported.cases.filter((c) => c.owningInstitution === 'darolahsan').length,
+      edalatCases: imported.cases.filter((c) => c.owningInstitution === 'edalat').length,
+      redTierCount: imported.cases.filter((c) => c.urgencyTier === 'red').length,
+      yellowTierCount: imported.cases.filter((c) => c.urgencyTier === 'yellow').length,
+      greenTierCount: imported.cases.filter((c) => c.urgencyTier === 'green').length,
+    }));
     pushToast({
       variant: 'success',
       category: 'transaction',
@@ -1226,6 +1236,7 @@ export default function App() {
                 summary={summary}
                 blocks={blocks}
                 cases={cases}
+                auditLogs={auditLogs}
                 activeInstitution={activeInstitution}
                 activeRole={activeRole}
                 onAdvanceStage={handleAdvanceStage}

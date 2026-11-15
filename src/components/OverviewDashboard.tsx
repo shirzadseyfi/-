@@ -28,6 +28,7 @@ import {exportCasesRegisterToExcel} from '../utils/excelExport';
 import type {
   AiPrioritizationFocus,
   AiPrioritizationResult,
+  AuditLogEntry,
   CaseRecordView,
   CaseStage,
   DashboardSummary,
@@ -44,6 +45,7 @@ interface OverviewDashboardProps {
   summary: DashboardSummary;
   blocks: NaysarBlock[];
   cases: CaseRecordView[];
+  auditLogs?: AuditLogEntry[];
   activeInstitution: InstitutionId;
   activeRole: UserRole;
   onAdvanceStage: (caseId: string, nextStage: CaseStage) => Promise<void>;
@@ -161,6 +163,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   summary,
   blocks,
   cases,
+  auditLogs = [],
   activeInstitution,
   activeRole,
   onAdvanceStage,
@@ -1968,6 +1971,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
 
       {/* Recent Activity Log Widget at the end of OverviewDashboard */}
       <RecentActivityWidget
+        auditLogs={auditLogs}
         cases={cases}
         isDark={isDark}
         themeAccent={themeAccent}

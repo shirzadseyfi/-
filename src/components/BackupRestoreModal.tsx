@@ -36,7 +36,10 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
         blocks,
         quickNotesMap: (() => {
           try {
-            return JSON.parse(localStorage.getItem('naysar_quick_notes_map') || '{}');
+            const parsedNotes = JSON.parse(localStorage.getItem('naysar_quick_notes_map') || '{}');
+            return parsedNotes && typeof parsedNotes === 'object' && !Array.isArray(parsedNotes)
+              ? parsedNotes
+              : {};
           } catch {
             return {};
           }
@@ -82,7 +85,11 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
         const restoredCases = parsed.cases as CaseRecordView[];
         const restoredBlocks = Array.isArray(parsed.blocks) ? (parsed.blocks as NaysarBlock[]) : blocks;
 
-        if (parsed.quickNotesMap) {
+        if (
+          parsed.quickNotesMap &&
+          typeof parsed.quickNotesMap === 'object' &&
+          !Array.isArray(parsed.quickNotesMap)
+        ) {
           try {
             localStorage.setItem('naysar_quick_notes_map', JSON.stringify(parsed.quickNotesMap));
           } catch {}
