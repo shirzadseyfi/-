@@ -35,6 +35,7 @@ import {
   Wifi,
   WifiOff,
   FileSpreadsheet,
+  Users,
 } from 'lucide-react';
 import {AssessmentConsentView} from './components/AssessmentConsentView';
 import {InquiryView} from './components/InquiryView';
@@ -44,6 +45,7 @@ import {MicrofinanceGraduationView} from './components/MicrofinanceGraduationVie
 import {OverviewDashboard} from './components/OverviewDashboard';
 import {ReportsView} from './components/ReportsView';
 import {SecurityRoadmapView} from './components/SecurityRoadmapView';
+import {IdentityProfilesManagerView} from './components/IdentityProfilesManagerView';
 import {UserGuideModal} from './components/UserGuideModal';
 import {BackupRestoreModal} from './components/BackupRestoreModal';
 import {HistoricalDataImportModal} from './components/HistoricalDataImportModal';
@@ -86,7 +88,8 @@ type ActiveSection =
   | 'assessment'
   | 'microfinance'
   | 'reports'
-  | 'security';
+  | 'security'
+  | 'identity';
 
 const NAV_ITEMS: {id: ActiveSection; label: string; icon: ComponentType<{className?: string}>}[] = [
   {id: 'overview', label: 'پیشخوان', icon: LayoutDashboard},
@@ -95,6 +98,7 @@ const NAV_ITEMS: {id: ActiveSection; label: string; icon: ComponentType<{classNa
   {id: 'microfinance', label: 'صندوق خرد', icon: Wallet},
   {id: 'reports', label: 'گزارش‌ها', icon: BarChart3},
   {id: 'security', label: 'امنیت و نقشه راه', icon: ShieldCheck},
+  {id: 'identity', label: 'مشخصات هویتی', icon: Users},
 ];
 
 const STAGE_LABELS: Record<CaseStage, string> = {
@@ -768,18 +772,21 @@ export default function App() {
           Digit4: 'microfinance',
           Digit5: 'reports',
           Digit6: 'security',
+          Digit7: 'identity',
           '1': 'overview',
           '2': 'inquiry',
           '3': 'assessment',
           '4': 'microfinance',
           '5': 'reports',
           '6': 'security',
+          '7': 'identity',
           '۱': 'overview',
           '۲': 'inquiry',
           '۳': 'assessment',
           '۴': 'microfinance',
           '۵': 'reports',
           '۶': 'security',
+          '۷': 'identity',
         };
 
         const targetSection = codeMap[e.code] || codeMap[e.key];
@@ -1678,6 +1685,30 @@ export default function App() {
                 cases={cases}
                 isDark={isDark}
                 themeAccent={uiPrefs.accent}
+              />
+            )}
+
+            {activeSection === 'identity' && (
+              <IdentityProfilesManagerView
+                cases={cases}
+                blocks={blocks}
+                activeInstitution={activeInstitution}
+                isDark={isDark}
+                themeAccent={uiPrefs.accent}
+                onStartAssessmentWithId={(nid, blk) => {
+                  setEditingCaseId(null);
+                  setPrefilledNationalId(nid);
+                  setPrefilledBlockId(blk);
+                  handleNavigate('assessment');
+                }}
+                onExportToast={(title, description) =>
+                  pushToast({
+                    variant: 'success',
+                    category: 'transaction',
+                    title,
+                    description,
+                  })
+                }
               />
             )}
           </>

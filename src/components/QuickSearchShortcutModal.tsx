@@ -8,6 +8,7 @@ import {
   Lock,
   Search,
   ShieldCheck,
+  Users,
   Wallet,
   X,
 } from 'lucide-react';
@@ -20,7 +21,8 @@ export type ShortcutSectionId =
   | 'assessment'
   | 'microfinance'
   | 'reports'
-  | 'security';
+  | 'security'
+  | 'identity';
 
 interface QuickSearchShortcutModalProps {
   isOpen: boolean;
@@ -100,6 +102,14 @@ const QUICK_ACTIONS: Array<{
     shortcut: 'Alt + 6',
     section: 'security',
     icon: ShieldCheck,
+  },
+  {
+    id: 'nav-identity',
+    label: 'ثبت و مدیریت مشخصات هویتی',
+    hint: 'دایرکتوری مؤسسات، پرسنل، مددجویان و هیئت‌مدیره',
+    shortcut: 'Alt + 7',
+    section: 'identity',
+    icon: Users,
   },
 ];
 
@@ -533,7 +543,7 @@ export const QuickSearchShortcutModal: React.FC<
               بازکردن پرونده
             </span>
           </div>
-          <span>کلیدهای Alt+1 تا Alt+6 جهت جابجایی فوری</span>
+          <span>کلیدهای Alt+1 تا Alt+7 جهت جابجایی فوری</span>
         </div>
       </div>
     </div>
