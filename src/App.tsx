@@ -34,6 +34,10 @@ import {SecurityRoadmapView} from './components/SecurityRoadmapView';
 import {UserGuideModal} from './components/UserGuideModal';
 import {BackupRestoreModal} from './components/BackupRestoreModal';
 import {
+  QuickSearchShortcutModal,
+  type ShortcutSectionId,
+} from './components/QuickSearchShortcutModal';
+import {
   DEFAULT_TOAST_PREFERENCES,
   DEFAULT_UI_PREFERENCES,
   ThemeSettingsModal,
@@ -269,6 +273,8 @@ export default function App() {
   const [prefilledBlockId, setPrefilledBlockId] = useState('');
   const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
   const [activeWorkflowCaseId, setActiveWorkflowCaseId] = useState<string | null>(null);
+  const [pendingInspectCaseId, setPendingInspectCaseId] = useState<string | null>(null);
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
 
@@ -429,11 +435,67 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
-  const handleNavigate = (section: ActiveSection) => {
+  const handleNavigate = useCallback((section: ActiveSection) => {
     setActiveSection(section);
     setMobileMenuOpen(false);
     window.scrollTo({top: 0, behavior: 'smooth'});
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!authSession) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'k' || e.code === 'KeyK')) {
+        e.preventDefault();
+        setQuickSearchOpen((prev) => !prev);
+        return;
+      }
+
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        if (
+          tag === 'INPUT' ||
+          tag === 'TEXTAREA' ||
+          tag === 'SELECT' ||
+          target?.isContentEditable
+        ) {
+          return;
+        }
+
+        const codeMap: Record<string, ActiveSection> = {
+          Digit1: 'overview',
+          Digit2: 'inquiry',
+          Digit3: 'assessment',
+          Digit4: 'microfinance',
+          Digit5: 'reports',
+          Digit6: 'security',
+          '1': 'overview',
+          '2': 'inquiry',
+          '3': 'assessment',
+          '4': 'microfinance',
+          '5': 'reports',
+          '6': 'security',
+          '۱': 'overview',
+          '۲': 'inquiry',
+          '۳': 'assessment',
+          '۴': 'microfinance',
+          '۵': 'reports',
+          '۶': 'security',
+        };
+
+        const targetSection = codeMap[e.code] || codeMap[e.key];
+        if (targetSection) {
+          e.preventDefault();
+          setQuickSearchOpen(false);
+          handleNavigate(targetSection);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [authSession, handleNavigate]);
 
   const handleAdvanceStage = async (caseId: string, nextStage: CaseStage) => {
     const targetCase = cases.find((c) => c.id === caseId);
@@ -928,6 +990,22 @@ export default function App() {
               {liveDateTime.date} · {liveDateTime.shortTime}
             </span>
 
+            <button
+              type="button"
+              onClick={() => setQuickSearchOpen(true)}
+              title="جستجوی سریع پرونده‌ها و میانبرهای سامانه (Ctrl+K)"
+              className="px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors inline-flex items-center gap-2 whitespace-nowrap shrink-0"
+            >
+              <Search className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400 shrink-0" />
+              <span className="hidden sm:inline">جستجوی سریع</span>
+              <kbd
+                dir="ltr"
+                className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded"
+              >
+                Ctrl+K
+              </kbd>
+            </button>
+
             {activeSection !== 'inquiry' ? (
               <button
                 type="button"
@@ -1061,6 +1139,8 @@ export default function App() {
                 }}
                 initialWorkflowCaseId={activeWorkflowCaseId}
                 onClearInitialWorkflowCase={() => setActiveWorkflowCaseId(null)}
+                initialInspectedCaseId={pendingInspectCaseId}
+                onClearInitialInspectedCase={() => setPendingInspectCaseId(null)}
                 onNavigateToInquiry={() => handleNavigate('inquiry')}
                 onNavigateToAssessment={() => {
                   setEditingCaseId(null);
@@ -1218,6 +1298,29 @@ export default function App() {
         onExportToast={(title, description) =>
           pushToast({variant: 'success', category: 'transaction', title, description})
         }
+      />
+
+      <QuickSearchShortcutModal
+        isOpen={quickSearchOpen}
+        onClose={() => setQuickSearchOpen(false)}
+        cases={cases}
+        activeInstitution={activeInstitution}
+        activeRole={activeRole}
+        onSelectCaseInspect={(caseId) => {
+          setPendingInspectCaseId(caseId);
+          handleNavigate('overview');
+        }}
+        onSelectCaseWorkflow={(caseId) => {
+          setActiveWorkflowCaseId(caseId);
+          handleNavigate('overview');
+        }}
+        onNavigateSection={(section: ShortcutSectionId) => {
+          handleNavigate(section);
+        }}
+        onStartNewCase={() => {
+          setEditingCaseId(null);
+          handleNavigate('assessment');
+        }}
       />
 
       <ToastContainer

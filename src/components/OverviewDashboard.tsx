@@ -1,11 +1,13 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {
+  ArrowUpDown,
   Briefcase,
   FileSpreadsheet,
   HeartPulse,
   History,
   Home,
   Lock,
+  RotateCcw,
   Search,
   ShoppingBasket,
   X,
@@ -20,6 +22,8 @@ import {StageForecastPanel} from './StageForecastPanel';
 import {CaseworkerOverloadForecastWidget} from './CaseworkerOverloadForecastWidget';
 import {LivelihoodUrgentPriorityCard} from './LivelihoodUrgentPriorityCard';
 import {CaseAttachmentsModal} from './CaseAttachmentsModal';
+import {RecentActivityWidget} from './RecentActivityWidget';
+import {RiskTierDistributionPieWidget} from './RiskTierDistributionPieWidget';
 import {exportCasesRegisterToExcel} from '../utils/excelExport';
 import type {
   AiPrioritizationFocus,
@@ -32,6 +36,7 @@ import type {
   PredictedServiceCategory,
   ThreeMonthNeedForecast,
   UiThemeAccent,
+  UrgencyTier,
   UserRole,
 } from '../types';
 
@@ -49,6 +54,8 @@ interface OverviewDashboardProps {
   ) => Promise<void>;
   initialWorkflowCaseId?: string | null;
   onClearInitialWorkflowCase?: () => void;
+  initialInspectedCaseId?: string | null;
+  onClearInitialInspectedCase?: () => void;
   onNavigateToInquiry: () => void;
   onNavigateToAssessment: () => void;
   isDark?: boolean;
@@ -161,6 +168,8 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   onWorkflowSaved,
   initialWorkflowCaseId = null,
   onClearInitialWorkflowCase,
+  initialInspectedCaseId = null,
+  onClearInitialInspectedCase,
   onNavigateToInquiry,
   onNavigateToAssessment,
   isDark = false,
@@ -171,6 +180,13 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
 }) => {
   const [selectedBlockId, setSelectedBlockId] = useState<string>('all');
   const [selectedStage, setSelectedStage] = useState<CaseStage | 'all'>('all');
+  const [selectedRiskTier, setSelectedRiskTier] = useState<UrgencyTier | 'all'>('all');
+  const [selectedCoverageStatus, setSelectedCoverageStatus] = useState<
+    CaseRecordView['coverageStatus'] | 'all'
+  >('all');
+  const [sortBy, setSortBy] = useState<
+    'default' | 'status' | 'score_desc' | 'days_desc' | 'stage_asc'
+  >('default');
   const [selectedForecastFilter, setSelectedForecastFilter] = useState<
     'all' | 'high_risk' | PredictedServiceCategory
   >('all');
@@ -252,6 +268,15 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
       setWorkflowCaseId(initialWorkflowCaseId);
     }
   }, [initialWorkflowCaseId]);
+
+  useEffect(() => {
+    if (!initialInspectedCaseId) return;
+    const found = cases.find((c) => c.id === initialInspectedCaseId);
+    if (found) {
+      setInspectedCase(found);
+      onClearInitialInspectedCase?.();
+    }
+  }, [initialInspectedCaseId, cases, onClearInitialInspectedCase]);
 
   const workflowTargetCase = useMemo(() => {
     if (!workflowCaseId) return null;
@@ -368,11 +393,20 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   }, [cases, matchesTextQuery]);
 
   const filteredCases = useMemo(() => {
-    return cases.filter((item) => {
+    const matched = cases.filter((item) => {
       if (selectedBlockId !== 'all' && item.blockId !== selectedBlockId) {
         return false;
       }
       if (selectedStage !== 'all' && item.stage !== selectedStage) {
+        return false;
+      }
+      if (selectedRiskTier !== 'all' && item.urgencyTier !== selectedRiskTier) {
+        return false;
+      }
+      if (
+        selectedCoverageStatus !== 'all' &&
+        item.coverageStatus !== selectedCoverageStatus
+      ) {
         return false;
       }
       if (selectedForecastFilter !== 'all') {
@@ -388,7 +422,61 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
       }
       return true;
     });
-  }, [cases, selectedBlockId, selectedStage, selectedForecastFilter, matchesTextQuery]);
+
+    if (sortBy === 'default') return matched;
+
+    const statusOrder: Record<CaseRecordView['coverageStatus'], number> = {
+      ACTIVE: 1,
+      SUSPENDED_OVERLAP: 2,
+      GRADUATED: 3,
+    };
+
+    return [...matched].sort((a, b) => {
+      if (sortBy === 'status') {
+        const diff = statusOrder[a.coverageStatus] - statusOrder[b.coverageStatus];
+        if (diff !== 0) return diff;
+        return b.score.total - a.score.total;
+      }
+      if (sortBy === 'score_desc') {
+        return b.score.total - a.score.total;
+      }
+      if (sortBy === 'days_desc') {
+        return b.daysInStage - a.daysInStage;
+      }
+      if (sortBy === 'stage_asc') {
+        return a.stage - b.stage;
+      }
+      return 0;
+    });
+  }, [
+    cases,
+    selectedBlockId,
+    selectedStage,
+    selectedRiskTier,
+    selectedCoverageStatus,
+    selectedForecastFilter,
+    matchesTextQuery,
+    sortBy,
+  ]);
+
+  const hasActiveTableFilters =
+    selectedBlockId !== 'all' ||
+    selectedStage !== 'all' ||
+    selectedRiskTier !== 'all' ||
+    selectedCoverageStatus !== 'all' ||
+    selectedForecastFilter !== 'all' ||
+    searchTerm.trim() !== '' ||
+    sortBy !== 'default';
+
+  const handleResetTableFilters = () => {
+    setSelectedBlockId('all');
+    setSelectedStage('all');
+    setSelectedRiskTier('all');
+    setSelectedCoverageStatus('all');
+    setSelectedForecastFilter('all');
+    setSearchTerm('');
+    setSortBy('default');
+  };
 
   const handleAdvance = async (item: CaseRecordView) => {
     if (item.stage >= 6 || item.isMasked) return;
@@ -605,6 +693,14 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         onSelectStage={setSelectedStage}
         isDark={isDark}
         themeAccent={themeAccent}
+      />
+
+      {/* Recharts Risk Tier Distribution Pie Chart Across Institutions */}
+      <RiskTierDistributionPieWidget
+        cases={cases}
+        selectedRiskTier={selectedRiskTier}
+        onSelectRiskTier={setSelectedRiskTier}
+        isDark={isDark}
       />
 
       {/* Stage 5 Follow-up Due Dates Mini Calendar */}
@@ -1297,7 +1393,95 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             })}
           </div>
 
-          {/* 3-Month Need Forecast Filter Strip */}
+          {/* Coverage Status Filter & Sort Bar */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 ml-1">
+                وضعیت پرونده:
+              </span>
+              {(
+                [
+                  {
+                    id: 'all',
+                    label: 'همه وضعیت‌ها',
+                    count: cases.length,
+                  },
+                  {
+                    id: 'ACTIVE',
+                    label: 'فعال',
+                    count: cases.filter((c) => c.coverageStatus === 'ACTIVE').length,
+                  },
+                  {
+                    id: 'SUSPENDED_OVERLAP',
+                    label: 'معلق',
+                    count: cases.filter((c) => c.coverageStatus === 'SUSPENDED_OVERLAP').length,
+                  },
+                  {
+                    id: 'GRADUATED',
+                    label: 'خروجی موفق',
+                    count: cases.filter((c) => c.coverageStatus === 'GRADUATED').length,
+                  },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setSelectedCoverageStatus(opt.id)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap tabular-nums ${
+                    selectedCoverageStatus === opt.id
+                      ? 'bg-teal-700 text-white border border-transparent'
+                      : 'bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {opt.label} ({toPersianNum(opt.count)})
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <label
+                htmlFor="case-table-sort"
+                className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                <span>مرتب‌سازی:</span>
+              </label>
+              <select
+                id="case-table-sort"
+                value={sortBy}
+                onChange={(e) =>
+                  setSortBy(
+                    e.target.value as
+                      | 'default'
+                      | 'status'
+                      | 'score_desc'
+                      | 'days_desc'
+                      | 'stage_asc',
+                  )
+                }
+                className="px-2.5 py-1.5 text-xs font-medium bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-600"
+              >
+                <option value="default">پیش‌فرض (جدیدترین ثبت)</option>
+                <option value="status">وضعیت (فعال ← معلق ← خروجی موفق)</option>
+                <option value="score_desc">بالاترین امتیاز فوریت</option>
+                <option value="days_desc">طولانی‌ترین توقف در مرحله</option>
+                <option value="stage_asc">ترتیب مراحل (۱ تا ۶)</option>
+              </select>
+
+              {hasActiveTableFilters && (
+                <button
+                  type="button"
+                  onClick={handleResetTableFilters}
+                  className="px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors inline-flex items-center gap-1 whitespace-nowrap"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>پاک‌کردن فیلترها</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 3-Month Need Forecast & Risk Tier Filter Strip */}
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400 ml-1">
               پیش‌بینی نیاز ۳ ماه آینده:
@@ -1318,6 +1502,31 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 onClick={() => setSelectedForecastFilter(opt.id)}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
                   selectedForecastFilter === opt.id
+                    ? 'bg-slate-900 dark:bg-teal-700 text-white border border-transparent'
+                    : 'bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mr-3 ml-1">
+              وضعیت ریسک:
+            </span>
+            {(
+              [
+                {id: 'all', label: 'همه سطوح'},
+                {id: 'red', label: 'قرمز (بحرانی)'},
+                {id: 'yellow', label: 'زرد (مستمر)'},
+                {id: 'green', label: 'سبز (توانمندسازی)'},
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setSelectedRiskTier(opt.id)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                  selectedRiskTier === opt.id
                     ? 'bg-slate-900 dark:bg-teal-700 text-white border border-transparent'
                     : 'bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
@@ -1751,6 +1960,14 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Recent Activity Log Widget at the end of OverviewDashboard */}
+      <RecentActivityWidget
+        cases={cases}
+        isDark={isDark}
+        themeAccent={themeAccent}
+        onExportToast={onExportToast}
+      />
 
       {/* 6-Stage Step-by-Step Case Management Workflow Modal */}
       {workflowTargetCase && (
