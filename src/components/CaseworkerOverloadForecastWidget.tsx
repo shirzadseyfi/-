@@ -145,8 +145,8 @@ export const CaseworkerOverloadForecastWidget: React.FC<CaseworkerOverloadWidget
       className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-6 shadow-sm"
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="text-center md:text-right space-y-1">
+          <div className="flex items-center justify-center md:justify-start gap-2">
             <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 tabular-nums">
               سامانه پایش هوشمند ظرفیت
             </span>
@@ -157,13 +157,13 @@ export const CaseworkerOverloadForecastWidget: React.FC<CaseworkerOverloadWidget
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">
             پایش و هشدار اشباع ظرفیت عملیاتی مددکاران (Case Overload Forecast)
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
             شناسایی خودکار مددکارانی که در هفته پیش رو به سقف ظرفیت عملیاتی خود نزدیک شده و نیازمند تعدیل بار کاری هستند.
           </p>
         </div>
 
         {topOverloadWorker && (
-          <div className="flex items-center gap-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded-xl p-3 shrink-0">
+          <div className="flex items-center gap-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded-xl p-3 shrink-0 mx-auto md:mx-0">
             <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/60 flex items-center justify-center text-red-700 dark:text-red-300">
               <ShieldAlert className="w-5 h-5" />
             </div>

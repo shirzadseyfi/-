@@ -16,6 +16,10 @@
     font-family: "Vazirmatn", ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
 
+  html[data-font="amiri"] {
+    font-family: "Amiri", "Traditional Arabic", "Vazirmatn", serif;
+  }
+
   html[data-font="noto"] {
     font-family: "Noto Sans Arabic", "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
   }

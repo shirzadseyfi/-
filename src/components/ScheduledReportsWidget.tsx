@@ -88,8 +88,8 @@ export const ScheduledReportsWidget: React.FC<ScheduledReportsWidgetProps> = ({
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-sm">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="text-center md:text-right space-y-1">
+          <div className="flex items-center justify-center md:justify-start gap-2">
             <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 tabular-nums">
               تقویم خودکار خروجی‌ها
             </span>
@@ -100,12 +100,12 @@ export const ScheduledReportsWidget: React.FC<ScheduledReportsWidgetProps> = ({
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">
             گزارش‌های زمان‌بندی‌شده و خودکار (Scheduled Performance Reports)
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
             تعیین زمان‌بندی و ارسال خودکار گزارش‌های عملکرد واحد حمایتی به تقویم کاری مددکاران و هیئت مدیره.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 rounded-xl px-3.5 py-2 text-xs font-semibold text-teal-800 dark:text-teal-300 shrink-0">
+        <div className="flex items-center gap-2 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 rounded-xl px-3.5 py-2 text-xs font-semibold text-teal-800 dark:text-teal-300 shrink-0 mx-auto md:mx-0">
           <Calendar className="w-4 h-4 shrink-0" />
           <span>تعداد برنامه‌های فعال: {schedules.filter((s) => s.status === 'active').length} مورد</span>
         </div>

@@ -26,6 +26,7 @@ import type {
 import {exportReportsToExcel} from '../utils/excelExport';
 import {ServiceDemandForecastWidget} from './ServiceDemandForecastWidget';
 import {ScheduledReportsWidget} from './ScheduledReportsWidget';
+import {PeriodicReportsManager} from './PeriodicReportsManager';
 
 interface ReportsViewProps {
   cases?: CaseRecordView[];
@@ -3358,6 +3359,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
           {/* Scheduled Reports Widget */}
           <ScheduledReportsWidget
+            isDark={effectiveDark}
+            themeAccent={themeAccent}
+            onExportToast={onExportToast}
+          />
+
+          {/* Periodic Reports Manager (Notifications & PDF Export) */}
+          <PeriodicReportsManager
+            activeInstitution={institutionFilter}
             isDark={effectiveDark}
             themeAccent={themeAccent}
             onExportToast={onExportToast}
