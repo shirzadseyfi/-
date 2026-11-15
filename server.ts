@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import http from 'node:http';
 import dotenv from 'dotenv';
 import express from 'express';
 import path from 'node:path';
@@ -1420,6 +1421,7 @@ function sanitizeCaseForRole(
 
 async function startServer() {
   const app = express();
+  const httpServer = http.createServer(app);
   app.use(express.json());
   app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err instanceof SyntaxError && 'body' in (err as unknown as Record<string, unknown>)) {
@@ -3731,9 +3733,29 @@ ${JSON.stringify(anonymizedCases, null, 2)}
   // Vite middleware in dev, static assets in production
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: {middlewareMode: true},
+      server: {
+        middlewareMode: true,
+        ws: {server: httpServer},
+      },
       appType: 'spa',
     });
+
+    app.get('/@vite/client', async (_req, res, next) => {
+      try {
+        const result = await vite.transformRequest('/@vite/client');
+        if (!result?.code) return next();
+        const patchedCode = result.code.replace(
+          'transport.connect(createHMRHandler(handleMessage));',
+          'if (typeof location !== "undefined" && (location.hostname === "localhost" || location.hostname === "127.0.0.1")) { Promise.resolve(transport.connect(createHMRHandler(handleMessage))).catch(() => {}); }',
+        );
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.send(patchedCode);
+      } catch {
+        return next();
+      }
+    });
+
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.join(__dirname, 'dist')));
@@ -3743,7 +3765,7 @@ ${JSON.stringify(anonymizedCases, null, 2)}
   }
 
   const port = Number(process.env.PORT) || 3000;
-  app.listen(port, '0.0.0.0', () => {
+  httpServer.listen(port, '0.0.0.0', () => {
     console.log(`Naysar Synergistic Case Management System listening on port ${port}`);
   });
 }
