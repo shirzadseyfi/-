@@ -27,6 +27,7 @@ import {exportReportsToExcel} from '../utils/excelExport';
 import {ServiceDemandForecastWidget} from './ServiceDemandForecastWidget';
 import {ScheduledReportsWidget} from './ScheduledReportsWidget';
 import {PeriodicReportsManager} from './PeriodicReportsManager';
+import {apiFetch} from '../utils/staticApiFallback';
 
 interface ReportsViewProps {
   cases?: CaseRecordView[];
@@ -174,7 +175,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `/api/reports?institution=${encodeURIComponent(institutionFilter)}`,
         );
         if (!res.ok) throw new Error('خطا در دریافت داده‌های گزارش ۶ ماهه.');

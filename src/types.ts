@@ -398,6 +398,7 @@ export interface ToastNotificationPreferences {
   durationMs: number;
   position: ToastPosition;
   soundOnCritical: boolean;
+  desktopEnabled: boolean;
 }
 
 export interface UiPreferences {

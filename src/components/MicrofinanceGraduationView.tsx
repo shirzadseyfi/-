@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Award, Check, Copy, PlusCircle, Users} from 'lucide-react';
 import type {ShgGroup} from '../types';
+import {apiFetch} from '../utils/staticApiFallback';
 
 interface MicrofinanceGraduationViewProps {
   groups: ShgGroup[];
@@ -144,7 +145,7 @@ export const MicrofinanceGraduationView: React.FC<MicrofinanceGraduationViewProp
     try {
       const sanitizedSaving = Math.max(100000, Number(monthlySaving) || 100000);
       const sanitizedLoan = Math.max(0, Number(loanAmount) || 0);
-      const res = await fetch(`/api/shg/${activeGroup.id}/members`, {
+      const res = await apiFetch(`/api/shg/${activeGroup.id}/members`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({

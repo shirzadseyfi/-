@@ -13,6 +13,7 @@ import type {
   StageForecastPayload,
   UiThemeAccent,
 } from '../types';
+import {apiFetch} from '../utils/staticApiFallback';
 
 interface StageForecastPanelProps {
   activeInstitution: InstitutionId;
@@ -81,7 +82,7 @@ export const StageForecastPanel: React.FC<StageForecastPanelProps> = ({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `/api/overview/stage-forecast?institution=${encodeURIComponent(scopeFilter)}&scenario=${encodeURIComponent(scenario)}`,
         );
         if (!res.ok) throw new Error('خطا در محاسبه مدل پیش‌بینی مراحل.');

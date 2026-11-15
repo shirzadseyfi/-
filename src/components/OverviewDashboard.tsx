@@ -25,6 +25,7 @@ import {CaseAttachmentsModal} from './CaseAttachmentsModal';
 import {RecentActivityWidget} from './RecentActivityWidget';
 import {RiskTierDistributionPieWidget} from './RiskTierDistributionPieWidget';
 import {exportCasesRegisterToExcel} from '../utils/excelExport';
+import {apiFetch} from '../utils/staticApiFallback';
 import type {
   AiPrioritizationFocus,
   AiPrioritizationResult,
@@ -330,7 +331,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     setIsSearchingServer(true);
     const timer = window.setTimeout(async () => {
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `/api/cases/search?institution=${encodeURIComponent(activeInstitution)}&role=${encodeURIComponent(activeRole)}&q=${encodeURIComponent(trimmed)}`,
           {signal: controller.signal},
         );
@@ -504,7 +505,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     setAiLoading(true);
     setAiError(null);
     try {
-      const res = await fetch('/api/ai/prioritize', {
+      const res = await apiFetch('/api/ai/prioritize', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({

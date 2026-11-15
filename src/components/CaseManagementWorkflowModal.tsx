@@ -26,6 +26,7 @@ import type {
   UserRole,
 } from '../types';
 import {getPersianDateTimeParts, toPersianDigits} from '../utils/persianDateTime';
+import {apiFetch} from '../utils/staticApiFallback';
 
 interface CaseManagementWorkflowModalProps {
   caseRecord: CaseRecordView | null;
@@ -545,7 +546,7 @@ export const CaseManagementWorkflowModal: React.FC<CaseManagementWorkflowModalPr
     setAiAssistLoading(true);
     setAiAssistError(null);
     try {
-      const res = await fetch('/api/ai/stage-assist', {
+      const res = await apiFetch('/api/ai/stage-assist', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -586,7 +587,7 @@ export const CaseManagementWorkflowModal: React.FC<CaseManagementWorkflowModalPr
     setSaveError(null);
     setSaveSuccess(null);
     try {
-      const res = await fetch(`/api/cases/${encodeURIComponent(caseRecord.id)}/workflow`, {
+      const res = await apiFetch(`/api/cases/${encodeURIComponent(caseRecord.id)}/workflow`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({

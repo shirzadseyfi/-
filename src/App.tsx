@@ -16,6 +16,7 @@ import {
 import {
   BarChart3,
   Bell,
+  BellRing,
   ClipboardList,
   LayoutDashboard,
   LogOut,
@@ -42,6 +43,7 @@ import {ReportsView} from './components/ReportsView';
 import {SecurityRoadmapView} from './components/SecurityRoadmapView';
 import {UserGuideModal} from './components/UserGuideModal';
 import {BackupRestoreModal} from './components/BackupRestoreModal';
+import {apiFetch} from './utils/staticApiFallback';
 import {
   QuickSearchShortcutModal,
   type ShortcutSectionId,
@@ -54,6 +56,12 @@ import {
 } from './components/ThemeSettingsModal';
 import {ToastContainer, type ToastItem} from './components/ToastContainer';
 import {getPersianDateTimeParts, type PersianDateTimeParts} from './utils/persianDateTime';
+import {
+  getDesktopNotificationPermission,
+  requestDesktopNotificationPermission,
+  sendDesktopNotification,
+  type BrowserNotificationPermissionState,
+} from './utils/desktopNotifications';
 import type {
   AuditLogEntry,
   AuthUserSession,
@@ -145,6 +153,10 @@ function loadInitialPrefs(): UiPreferences {
           typeof rawToast?.soundOnCritical === 'boolean'
             ? rawToast.soundOnCritical
             : DEFAULT_TOAST_PREFERENCES.soundOnCritical,
+        desktopEnabled:
+          typeof rawToast?.desktopEnabled === 'boolean'
+            ? rawToast.desktopEnabled
+            : DEFAULT_TOAST_PREFERENCES.desktopEnabled,
       },
     };
   } catch {
@@ -304,6 +316,21 @@ export default function App() {
   const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<UserSettingsTab>('notifications');
   const [uiPrefs, setUiPrefs] = useState<UiPreferences>(loadInitialPrefs);
+  const [desktopPermission, setDesktopPermission] = useState<BrowserNotificationPermissionState>(
+    () => getDesktopNotificationPermission(),
+  );
+
+  useEffect(() => {
+    const syncPermission = () => {
+      setDesktopPermission(getDesktopNotificationPermission());
+    };
+    window.addEventListener('focus', syncPermission);
+    document.addEventListener('visibilitychange', syncPermission);
+    return () => {
+      window.removeEventListener('focus', syncPermission);
+      document.removeEventListener('visibilitychange', syncPermission);
+    };
+  }, []);
 
   const openSettingsModal = useCallback((tab: UserSettingsTab) => {
     setSettingsTab(tab);
@@ -406,6 +433,12 @@ export default function App() {
       title: 'بازیابی اطلاعات با موفقیت انجام شد',
       description: `${imported.cases.length} پرونده از فایل پشتیبان سیستم دیگر بارگذاری شد.`,
     });
+    notifyCaseworkerDesktop({
+      title: 'بازیابی اطلاعات سامانه انجام شد',
+      body: `${imported.cases.length} پرونده از فایل پشتیبان بارگذاری و شاخص‌ها بروزرسانی شد.`,
+      tag: 'naysar-restore',
+      critical: true,
+    });
   };
 
   // Toast notification queue
@@ -421,11 +454,51 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const notifyCaseworkerDesktop = useCallback(
+    (opts: {
+      title: string;
+      body: string;
+      tag?: string;
+      critical?: boolean;
+      inspectCaseId?: string;
+    }) => {
+      const desktopEnabled = uiPrefs.toast?.desktopEnabled ?? true;
+      return sendDesktopNotification({
+        title: opts.title,
+        body: opts.body,
+        tag: opts.tag,
+        critical: opts.critical,
+        enabled: desktopEnabled,
+        onClick: opts.inspectCaseId
+          ? () => {
+              setPendingInspectCaseId(opts.inspectCaseId!);
+              setActiveSection('overview');
+            }
+          : undefined,
+      });
+    },
+    [uiPrefs.toast?.desktopEnabled],
+  );
+
+  const notifyCaseworkerDesktopRef = useRef(notifyCaseworkerDesktop);
+  useEffect(() => {
+    notifyCaseworkerDesktopRef.current = notifyCaseworkerDesktop;
+  }, [notifyCaseworkerDesktop]);
+
   const pushToast = useCallback(
     (item: Omit<ToastItem, 'id'>): boolean => {
       const toastPrefs = uiPrefs.toast || DEFAULT_TOAST_PREFERENCES;
       const isCritical = item.variant === 'error' || item.category === 'critical';
       const isDraft = item.category === 'draft' || item.variant === 'info';
+
+      if (isCritical) {
+        notifyCaseworkerDesktopRef.current({
+          title: item.title,
+          body: item.description || 'هشدار حیاتی در سامانه مدیریت مورد نایسر ثبت شد.',
+          tag: 'naysar-critical-alert',
+          critical: true,
+        });
+      }
 
       if (toastPrefs.level === 'critical_only' && !isCritical) {
         return false;
@@ -464,9 +537,42 @@ export default function App() {
     pushToastRef.current = pushToast;
   }, [pushToast]);
 
+  const handleRequestDesktopPermission = useCallback(async () => {
+    const nextPerm = await requestDesktopNotificationPermission();
+    setDesktopPermission(nextPerm);
+    if (nextPerm === 'granted') {
+      setUiPrefs((prev) => ({
+        ...prev,
+        toast: {
+          ...(prev.toast || DEFAULT_TOAST_PREFERENCES),
+          desktopEnabled: true,
+        },
+      }));
+      sendDesktopNotification({
+        title: 'اعلان دسکتاپ سامانه نایسر فعال شد',
+        body: 'در صورت ثبت پرونده جدید یا تغییر وضعیت حیاتی، اعلان دسکتاپ برای شما ارسال می‌شود.',
+        tag: 'naysar-desktop-enabled',
+      });
+      pushToastRef.current({
+        variant: 'success',
+        category: 'transaction',
+        title: 'اعلان دسکتاپ مرورگر فعال شد',
+        description: 'از این پس هنگام ثبت پرونده جدید و رخدادهای حیاتی اعلان دسکتاپ ارسال می‌گردد.',
+      });
+    } else if (nextPerm === 'denied') {
+      pushToastRef.current({
+        variant: 'info',
+        category: 'transaction',
+        title: 'مجوز اعلان دسکتاپ در مرورگر مسدود است',
+        description: 'در صورت نیاز می‌توانید از بخش تنظیمات سایت در نوار آدرس مرورگر مجوز را فعال کنید.',
+      });
+    }
+    return nextPerm;
+  }, []);
+
   const fetchOverview = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/overview?institution=${encodeURIComponent(activeInstitution)}&role=${encodeURIComponent(activeRole)}`,
       );
       if (!res.ok) throw new Error('خطا در دریافت اطلاعات پیشخوان');
@@ -489,7 +595,7 @@ export default function App() {
 
   const fetchShg = useCallback(async () => {
     try {
-      const res = await fetch('/api/shg');
+      const res = await apiFetch('/api/shg');
       if (!res.ok) return;
       const data = await res.json();
       setShgGroups(data.groups);
@@ -500,7 +606,7 @@ export default function App() {
 
   const fetchAuditLogs = useCallback(async () => {
     try {
-      const res = await fetch('/api/audit-logs');
+      const res = await apiFetch('/api/audit-logs');
       if (!res.ok) return;
       const data = await res.json();
       setAuditLogs(data.logs);
@@ -625,7 +731,7 @@ export default function App() {
 
   const handleAdvanceStage = async (caseId: string, nextStage: CaseStage) => {
     const targetCase = cases.find((c) => c.id === caseId);
-    const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/stage`, {
+    const res = await apiFetch(`/api/cases/${encodeURIComponent(caseId)}/stage`, {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -646,6 +752,18 @@ export default function App() {
         title: 'جابجایی مرحله پرونده با موفقیت ثبت شد',
         description: `${beneficiaryLabel} به مرحله «${STAGE_LABELS[nextStage]}» منتقل و در دفتر ممیزی ثبت گردید.`,
       });
+      if (nextStage === 6 || targetCase?.urgencyTier === 'red') {
+        notifyCaseworkerDesktop({
+          title:
+            nextStage === 6
+              ? 'خروج موفق و خوداتکایی پرونده ثبت شد'
+              : 'تغییر وضعیت حیاتی پرونده بحرانی',
+          body: `${beneficiaryLabel} به مرحله «${STAGE_LABELS[nextStage]}» منتقل گردید.`,
+          tag: `stage-${caseId}`,
+          critical: targetCase?.urgencyTier === 'red',
+          inspectCaseId: caseId,
+        });
+      }
     } else {
       pushToast({
         variant: 'error',
@@ -657,7 +775,7 @@ export default function App() {
   };
 
   const handleResolveOverlap = async (caseId: string, model: CollaborationModel) => {
-    const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/stage`, {
+    const res = await apiFetch(`/api/cases/${encodeURIComponent(caseId)}/stage`, {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -673,6 +791,15 @@ export default function App() {
         category: 'transaction',
         title: 'پروتکل همکاری دو مؤسسه ثبت شد',
         description: `وضعیت هم‌پوشانی پرونده ${caseId} با موفقیت تعیین تکلیف گردید.`,
+      });
+      notifyCaseworkerDesktop({
+        title: 'تغییر وضعیت هم‌پوشانی و ثبت پروتکل همکاری',
+        body: `پرونده ${caseId} با مدل «${
+          model === 'complementary_support' ? 'پوشش ترکیبی' : 'واگذاری به مؤسسه مسئول'
+        }» تعیین تکلیف شد.`,
+        tag: `overlap-${caseId}`,
+        critical: true,
+        inspectCaseId: caseId,
       });
     } else {
       pushToast({
@@ -704,6 +831,8 @@ export default function App() {
           initialTab={settingsTab}
           prefs={uiPrefs}
           onChange={setUiPrefs}
+          desktopPermission={desktopPermission}
+          onRequestDesktopPermission={handleRequestDesktopPermission}
           onTestToast={(item) => pushToast(item)}
           onClose={() => setThemeModalOpen(false)}
         />
@@ -1117,6 +1246,18 @@ export default function App() {
               {liveDateTime.date} · {liveDateTime.shortTime}
             </span>
 
+            {desktopPermission === 'default' && (uiPrefs.toast?.desktopEnabled ?? true) && (
+              <button
+                type="button"
+                onClick={handleRequestDesktopPermission}
+                title="فعال‌سازی اعلان دسکتاپ مرورگر برای پرونده‌های جدید و تغییر وضعیت‌های حیاتی"
+                className="px-2.5 sm:px-3 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-200 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 rounded-lg transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              >
+                <BellRing className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden md:inline">اعلان دسکتاپ</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setQuickSearchOpen(true)}
@@ -1256,6 +1397,18 @@ export default function App() {
                       title: 'ارتقای مرحله پرونده با موفقیت ثبت شد',
                       description: `${nameLabel} به مرحله «${STAGE_LABELS[updatedCase.stage]}» منتقل شد.`,
                     });
+                    if (updatedCase.stage === 6 || updatedCase.urgencyTier === 'red') {
+                      notifyCaseworkerDesktop({
+                        title:
+                          updatedCase.stage === 6
+                            ? 'تغییر وضعیت پرونده به خروج موفق'
+                            : 'تغییر وضعیت حیاتی پرونده بحرانی',
+                        body: `${nameLabel} به مرحله «${STAGE_LABELS[updatedCase.stage]}» منتقل شد.`,
+                        tag: `workflow-${updatedCase.id}`,
+                        critical: updatedCase.urgencyTier === 'red',
+                        inspectCaseId: updatedCase.id,
+                      });
+                    }
                   } else if (updatedCase) {
                     pushToast({
                       variant: 'info',
@@ -1305,6 +1458,15 @@ export default function App() {
                   handleNavigate('assessment');
                 }}
                 onResolveOverlap={handleResolveOverlap}
+                onOverlapDetected={(matchedCaseId, owningInstitutionName, blockName) => {
+                  notifyCaseworkerDesktop({
+                    title: 'هشدار هم‌پوشانی پرونده بین دو مؤسسه',
+                    body: `پرونده ${matchedCaseId} در محدوده «${blockName}» پیش‌تر تحت پوشش «${owningInstitutionName}» ثبت شده است.`,
+                    tag: `inquiry-overlap-${matchedCaseId}`,
+                    critical: true,
+                    inspectCaseId: matchedCaseId,
+                  });
+                }}
               />
             )}
 
@@ -1333,9 +1495,44 @@ export default function App() {
                     pushToast({
                       variant: 'success',
                       category: 'transaction',
-                      title: 'پرونده با موفقیت ثبت شد',
+                      title: meta.isUpdate ? 'بروزرسانی پرونده با موفقیت ثبت شد' : 'پرونده جدید با موفقیت ثبت شد',
                       description: `اطلاعات ${label} در سامانه ذخیره و کد هش آن ثبت گردید.`,
                     });
+                  }
+
+                  if (meta) {
+                    const label = meta.fullName ? `${meta.fullName} (${meta.caseId})` : `پرونده ${meta.caseId}`;
+                    if (!meta.isUpdate) {
+                      notifyCaseworkerDesktop({
+                        title:
+                          meta.urgencyTier === 'red'
+                            ? 'ثبت پرونده جدید با وضعیت قرمز (بحرانی)'
+                            : 'ثبت پرونده جدید در سامانه نایسر',
+                        body: `${label} · امتیاز نیازمندی ${meta.scoreTotal ?? '—'}/۱۰۰ · مرحله «${STAGE_LABELS[meta.stage]}»`,
+                        tag: `new-case-${meta.caseId}`,
+                        critical: meta.urgencyTier === 'red',
+                        inspectCaseId: meta.caseId,
+                      });
+                    } else {
+                      const escalatedToRed =
+                        meta.urgencyTier === 'red' && meta.previousUrgencyTier !== 'red';
+                      const graduatedNow = meta.stageChanged && meta.stage === 6;
+                      const criticalStageMove = meta.stageChanged && meta.urgencyTier === 'red';
+
+                      if (escalatedToRed || graduatedNow || criticalStageMove) {
+                        notifyCaseworkerDesktop({
+                          title: escalatedToRed
+                            ? 'تغییر وضعیت حیاتی: ارتقا به سطح قرمز (بحرانی)'
+                            : graduatedNow
+                              ? 'تغییر وضعیت پرونده به خروج موفق'
+                              : 'تغییر وضعیت حیاتی پرونده بحرانی',
+                          body: `${label} · امتیاز ${meta.scoreTotal ?? '—'}/۱۰۰ · مرحله «${STAGE_LABELS[meta.stage]}»`,
+                          tag: `case-critical-${meta.caseId}`,
+                          critical: escalatedToRed || criticalStageMove,
+                          inspectCaseId: meta.caseId,
+                        });
+                      }
+                    }
                   }
                 }}
                 onNavigateToOverview={() => handleNavigate('overview')}
@@ -1407,6 +1604,8 @@ export default function App() {
         initialTab={settingsTab}
         prefs={uiPrefs}
         onChange={setUiPrefs}
+        desktopPermission={desktopPermission}
+        onRequestDesktopPermission={handleRequestDesktopPermission}
         onTestToast={(item) => pushToast(item)}
         onClose={() => setThemeModalOpen(false)}
       />

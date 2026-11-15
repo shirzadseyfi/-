@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import type {CaseRecordView, CaseStage, InstitutionId, UserRole} from '../types';
+import {apiFetch} from '../utils/staticApiFallback';
 
 export type ShortcutSectionId =
   | 'overview'
@@ -168,7 +169,7 @@ export const QuickSearchShortcutModal: React.FC<
     setIsSearchingServer(true);
     const timer = window.setTimeout(async () => {
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `/api/cases/search?institution=${encodeURIComponent(activeInstitution)}&role=${encodeURIComponent(activeRole)}&q=${encodeURIComponent(trimmed)}`,
           {signal: controller.signal},
         );

@@ -15,6 +15,7 @@ import type {
   NaysarBlock,
   UserRole,
 } from '../types';
+import {apiFetch} from '../utils/staticApiFallback';
 
 interface InquiryViewProps {
   blocks: NaysarBlock[];
@@ -23,6 +24,7 @@ interface InquiryViewProps {
   onStartNewCaseWithId: (nationalId: string, blockId: string) => void;
   onEditExistingCase: (caseId: string) => void;
   onResolveOverlap: (caseId: string, model: CollaborationModel) => Promise<void>;
+  onOverlapDetected?: (matchedCaseId: string, owningInstitutionName: string, blockName: string) => void;
 }
 
 const SAMPLE_IDS = [
@@ -47,6 +49,7 @@ export const InquiryView: React.FC<InquiryViewProps> = ({
   onStartNewCaseWithId,
   onEditExistingCase,
   onResolveOverlap,
+  onOverlapDetected,
 }) => {
   const [nationalId, setNationalId] = useState('');
   const [selectedBlockId, setSelectedBlockId] = useState(blocks[0]?.id || 'blk-1');
@@ -75,7 +78,7 @@ export const InquiryView: React.FC<InquiryViewProps> = ({
     setResolvedMessage(null);
     setLoading(true);
     try {
-      const res = await fetch('/api/inquiry', {
+      const res = await apiFetch('/api/inquiry', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -92,7 +95,15 @@ export const InquiryView: React.FC<InquiryViewProps> = ({
         setResult(null);
         return;
       }
-      setResult(data as InquiryResponse);
+      const parsed = data as InquiryResponse;
+      setResult(parsed);
+      if (parsed.status === 'MATCH_PARTNER' && parsed.matchedRecord) {
+        onOverlapDetected?.(
+          parsed.matchedRecord.caseId,
+          parsed.matchedRecord.owningInstitutionName,
+          parsed.matchedRecord.blockName,
+        );
+      }
     } catch {
       setError('ارتباط با سرور استعلام برقرار نشد.');
     } finally {

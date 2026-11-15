@@ -25,6 +25,13 @@ import type {
   UiThemeMode,
 } from '../types';
 
+import {
+  getDesktopNotificationPermission,
+  requestDesktopNotificationPermission,
+  sendDesktopNotification,
+  type BrowserNotificationPermissionState,
+} from '../utils/desktopNotifications';
+
 export type UserSettingsTab = 'notifications' | 'appearance';
 
 export const DEFAULT_TOAST_PREFERENCES: ToastNotificationPreferences = {
@@ -32,6 +39,7 @@ export const DEFAULT_TOAST_PREFERENCES: ToastNotificationPreferences = {
   durationMs: 4500,
   position: 'bottom-left',
   soundOnCritical: false,
+  desktopEnabled: true,
 };
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -117,6 +125,8 @@ interface ThemeSettingsModalProps {
   initialTab?: UserSettingsTab;
   prefs: UiPreferences;
   onChange: (next: UiPreferences) => void;
+  desktopPermission?: BrowserNotificationPermissionState;
+  onRequestDesktopPermission?: () => Promise<BrowserNotificationPermissionState>;
   onTestToast?: (item: {
     variant: 'success' | 'info' | 'error';
     category: 'critical' | 'transaction' | 'draft';
@@ -131,18 +141,27 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
   initialTab = 'notifications',
   prefs,
   onChange,
+  desktopPermission: externalDesktopPermission,
+  onRequestDesktopPermission,
   onTestToast,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>(initialTab);
   const [testFeedback, setTestFeedback] = useState<string | null>(null);
+  const [localPermission, setLocalPermission] = useState<BrowserNotificationPermissionState>(
+    () => externalDesktopPermission || getDesktopNotificationPermission(),
+  );
+  const [requestingPermission, setRequestingPermission] = useState(false);
+
+  const effectivePermission = externalDesktopPermission ?? localPermission;
 
   useEffect(() => {
     if (open) {
       setActiveTab(initialTab);
       setTestFeedback(null);
+      setLocalPermission(externalDesktopPermission ?? getDesktopNotificationPermission());
     }
-  }, [open, initialTab]);
+  }, [open, initialTab, externalDesktopPermission]);
 
   useEffect(() => {
     if (!open) return;
@@ -403,6 +422,114 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
                 className="w-4 h-4 accent-teal-700 rounded shrink-0"
               />
             </label>
+
+            {/* 3b. Browser Desktop Notifications (Notifications API) */}
+            <section className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 space-y-3">
+              <label className="flex items-center justify-between gap-3 cursor-pointer">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <BellRing className="w-4 h-4 text-teal-700 dark:text-teal-400 shrink-0" />
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                      اعلان دسکتاپ مرورگر برای پرونده‌های جدید و تغییر وضعیت‌های حیاتی
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                      ارسال اعلان سیستمی دسکتاپ هنگام ثبت پرونده جدید، هشدار هم‌پوشانی، ارتقا به وضعیت قرمز یا خروج موفق حتی زمانی که تب دیگری باز است.
+                    </div>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={toastPrefs.desktopEnabled ?? true}
+                  onChange={(e) => updateToastPrefs({desktopEnabled: e.target.checked})}
+                  className="w-4 h-4 accent-teal-700 rounded shrink-0"
+                />
+              </label>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-700/80 text-[11px]">
+                <span className="text-slate-600 dark:text-slate-300 font-medium">
+                  وضعیت مجوز مرورگر:{' '}
+                  <strong
+                    className={
+                      effectivePermission === 'granted'
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : effectivePermission === 'denied'
+                          ? 'text-red-700 dark:text-red-400'
+                          : 'text-amber-700 dark:text-amber-400'
+                    }
+                  >
+                    {effectivePermission === 'granted'
+                      ? 'تایید شده (فعال)'
+                      : effectivePermission === 'denied'
+                        ? 'مسدود در تنظیمات مرورگر'
+                        : effectivePermission === 'unsupported'
+                          ? 'پشتیبانی نمی‌شود'
+                          : 'در انتظار تایید مددکار'}
+                  </strong>
+                </span>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {effectivePermission === 'default' && (
+                    <button
+                      type="button"
+                      disabled={requestingPermission}
+                      onClick={async () => {
+                        setRequestingPermission(true);
+                        try {
+                          const nextPerm = onRequestDesktopPermission
+                            ? await onRequestDesktopPermission()
+                            : await requestDesktopNotificationPermission();
+                          setLocalPermission(nextPerm);
+                          if (nextPerm === 'granted') {
+                            updateToastPrefs({desktopEnabled: true});
+                            sendDesktopNotification({
+                              title: 'اعلان دسکتاپ سامانه نایسر فعال شد',
+                              body: 'از این پس هنگام ثبت پرونده جدید یا تغییر وضعیت حیاتی، اعلان دسکتاپ دریافت خواهید کرد.',
+                              tag: 'naysar-desktop-enabled',
+                            });
+                            setTestFeedback('مجوز اعلان دسکتاپ صادر شد و پیام آزمایشی به دسکتاپ ارسال گردید.');
+                          } else if (nextPerm === 'denied') {
+                            setTestFeedback('دسترسی اعلان دسکتاپ در مرورگر مسدود شد. از تنظیمات سایت در نوار آدرس قابل تغییر است.');
+                          }
+                        } finally {
+                          setRequestingPermission(false);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold transition-colors disabled:opacity-60"
+                    >
+                      {requestingPermission ? 'در انتظار تایید...' : 'فعال‌سازی و صدور مجوز مرورگر'}
+                    </button>
+                  )}
+
+                  {effectivePermission === 'granted' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sent = sendDesktopNotification({
+                          title: 'اعلان دسکتاپ آزمایشی · سامانه نایسر',
+                          body: 'نمونه هشدار ثبت پرونده جدید یا تغییر وضعیت حیاتی خانوار برای مددکار معین.',
+                          tag: 'naysar-desktop-test',
+                          enabled: toastPrefs.desktopEnabled ?? true,
+                        });
+                        setTestFeedback(
+                          sent
+                            ? 'اعلان دسکتاپ با موفقیت به سیستم‌عامل ارسال شد.'
+                            : 'اعلان‌های دسکتاپ در تنظیمات بالا غیرفعال شده است.',
+                        );
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-teal-300 dark:border-teal-800 bg-white dark:bg-slate-900 text-xs font-medium text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 transition-colors"
+                    >
+                      ارسال اعلان دسکتاپ آزمایشی
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {effectivePermission === 'denied' && (
+                <p className="text-[11px] text-red-700 dark:text-red-300 leading-relaxed">
+                  مرورگر اجازه نمایش اعلان را مسدود کرده است. برای فعال‌سازی مجدد، روی آیکون تنظیمات کنار آدرس سایت در مرورگر کلیک کرده و گزینه Notifications را روی Allow قرار دهید.
+                </p>
+              )}
+            </section>
 
             {/* 4. Interactive Filter Test Strip */}
             {onTestToast && (

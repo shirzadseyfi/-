@@ -17,6 +17,7 @@ import {
 import naysarSanandajImg from '../assets/images/naysar_sanandaj_view_1794683370549.jpg';
 import type {AuthUserSession} from '../types';
 import type {PersianDateTimeParts} from '../utils/persianDateTime';
+import {apiFetch} from '../utils/staticApiFallback';
 
 interface LoginViewProps {
   liveDateTime: PersianDateTimeParts;
@@ -80,7 +81,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
         .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
 
-      const res = await fetch('/api/auth/login', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({

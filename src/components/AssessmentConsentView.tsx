@@ -31,6 +31,7 @@ import type {
   NaysarBlock,
   ServicePath,
   SmartFieldAssistResponse,
+  UrgencyTier,
   UserRole,
 } from '../types';
 import {
@@ -39,6 +40,7 @@ import {
   normalizeVisitTimeInput,
   toPersianDigits,
 } from '../utils/persianDateTime';
+import {apiFetch} from '../utils/staticApiFallback';
 
 interface AssessmentConsentViewProps {
   blocks: NaysarBlock[];
@@ -55,6 +57,10 @@ interface AssessmentConsentViewProps {
     stageChanged: boolean;
     stage: CaseStage;
     fullName?: string;
+    urgencyTier?: UrgencyTier;
+    previousUrgencyTier?: UrgencyTier;
+    scoreTotal?: number;
+    previousScore?: number;
   }) => Promise<void>;
   onNavigateToOverview: () => void;
   onOpenCaseWorkflow?: (caseId: string) => void;
@@ -834,7 +840,7 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
     }
     setStepInquiryLoading(true);
     try {
-      const res = await fetch('/api/inquiry', {
+      const res = await apiFetch('/api/inquiry', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -862,7 +868,7 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
     setSmartAssistError(null);
     setSmartAssistLoading(true);
     try {
-      const res = await fetch('/api/ai/smart-assist', {
+      const res = await apiFetch('/api/ai/smart-assist', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -926,7 +932,7 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
     const block = blocks.find((b) => b.id === blockId);
     try {
       // Strictly send ONLY anonymized scores & block name — zero PII!
-      const res = await fetch('/api/ai/recommend', {
+      const res = await apiFetch('/api/ai/recommend', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -1020,7 +1026,7 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
     setSubmitting(true);
     try {
       if (mode === 'update' && selectedExistingCase) {
-        const res = await fetch(`/api/cases/${encodeURIComponent(selectedExistingCase.id)}`, {
+        const res = await apiFetch(`/api/cases/${encodeURIComponent(selectedExistingCase.id)}`, {
           method: 'PUT',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
@@ -1070,15 +1076,22 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
           previousScore: data.previousScore,
           isUpdate: true,
         });
+        const resolvedTier: UrgencyTier =
+          data.caseRecord?.urgencyTier ||
+          (score.total >= 70 ? 'red' : score.total >= 40 ? 'yellow' : 'green');
         await onCaseSaved({
           caseId: data.caseRecord.id,
           isUpdate: true,
           stageChanged,
           stage: targetStage,
           fullName: fullName.trim(),
+          urgencyTier: resolvedTier,
+          previousUrgencyTier: selectedExistingCase.urgencyTier,
+          scoreTotal: data.newScore ?? score.total,
+          previousScore: data.previousScore ?? selectedExistingCase.score.total,
         });
       } else {
-        const res = await fetch('/api/cases', {
+        const res = await apiFetch('/api/cases', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
@@ -1127,12 +1140,17 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
           scoreTotal: score.total,
           isUpdate: false,
         });
+        const resolvedTier: UrgencyTier =
+          data.caseRecord?.urgencyTier ||
+          (score.total >= 70 ? 'red' : score.total >= 40 ? 'yellow' : 'green');
         await onCaseSaved({
           caseId: data.caseRecord.id,
           isUpdate: false,
           stageChanged: false,
           stage: targetStage,
           fullName: fullName.trim(),
+          urgencyTier: resolvedTier,
+          scoreTotal: score.total,
         });
       }
     } catch {
