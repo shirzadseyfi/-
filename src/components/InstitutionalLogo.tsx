@@ -38,7 +38,7 @@ export const InstitutionEmblem: React.FC<InstitutionEmblemProps> = ({
   fullName = false,
   tone = 'theme',
 }) => {
-  const info = INSTITUTION_LOGOS[institution];
+  const info = INSTITUTION_LOGOS[institution] || INSTITUTION_LOGOS.darolahsan;
   const s = EMBLEM_SIZES[size];
   const frameClass =
     tone === 'print'

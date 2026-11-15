@@ -214,7 +214,12 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   const [quickNotesMap, setQuickNotesMap] = useState<Record<string, QuickNoteItem[]>>(() => {
     try {
       const saved = localStorage.getItem('naysar_quick_notes_map');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed as Record<string, QuickNoteItem[]>;
+        }
+      }
     } catch {}
     return {
       'NY-1405-101': [

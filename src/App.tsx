@@ -3,7 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {useCallback, useEffect, useRef, useState, type ComponentType} from 'react';
+import {
+  Component,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type ErrorInfo,
+  type ReactNode,
+} from 'react';
 import {
   BarChart3,
   Bell,
@@ -167,17 +176,117 @@ function playCriticalAlertBeep() {
   }
 }
 
+function clearStoredAuthSession() {
+  try {
+    localStorage.removeItem('naysar_auth_session_v1');
+    sessionStorage.removeItem('naysar_auth_session_temp_v1');
+  } catch {
+    // ignore
+  }
+}
+
 function loadInitialSession(): AuthUserSession | null {
   try {
     const raw =
       localStorage.getItem('naysar_auth_session_v1') ||
       sessionStorage.getItem('naysar_auth_session_temp_v1');
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<AuthUserSession>;
-    if (!parsed.username || !parsed.institution || !parsed.role) return null;
+    const parsed = JSON.parse(raw) as Partial<AuthUserSession> | null;
+    if (!parsed || typeof parsed !== 'object') {
+      clearStoredAuthSession();
+      return null;
+    }
+    const validInstitution =
+      parsed.institution === 'darolahsan' || parsed.institution === 'edalat';
+    const validRole =
+      parsed.role === 'case_worker' ||
+      parsed.role === 'executive_manager' ||
+      parsed.role === 'privacy_officer' ||
+      parsed.role === 'system_admin';
+    if (!parsed.username || !validInstitution || !validRole || !parsed.displayName) {
+      clearStoredAuthSession();
+      return null;
+    }
     return parsed as AuthUserSession;
   } catch {
+    clearStoredAuthSession();
     return null;
+  }
+}
+
+interface SessionErrorBoundaryProps {
+  children: ReactNode;
+  onResetSession: () => void;
+}
+
+interface SessionErrorBoundaryState {
+  hasError: boolean;
+  errorMessage: string;
+}
+
+class SessionErrorBoundary extends Component<
+  SessionErrorBoundaryProps,
+  SessionErrorBoundaryState
+> {
+  state: SessionErrorBoundaryState = {
+    hasError: false,
+    errorMessage: '',
+  };
+
+  static getDerivedStateFromError(error: Error): SessionErrorBoundaryState {
+    return {
+      hasError: true,
+      errorMessage: error?.message || 'خطای غیرمنتظره در بارگذاری داشبورد.',
+    };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('SessionErrorBoundary caught error:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/70 rounded-2xl p-6 space-y-4 shadow-lg text-right">
+            <h1 className="text-lg font-bold text-red-700 dark:text-red-400">
+              بروز خطا در بارگذاری فضای کاربری سامانه
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              در هنگام نمایش پیشخوان یا بازیابی نشست کاربری خطایی رخ داد. می‌توانید صفحه را مجدداً بارگذاری کنید یا به صفحه ورود بازگردید.
+            </p>
+            {this.state.errorMessage && (
+              <div
+                dir="ltr"
+                className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-mono text-slate-700 dark:text-slate-300 break-all"
+              >
+                {this.state.errorMessage}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => this.setState({hasError: false, errorMessage: ''})}
+                className="px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors"
+              >
+                تلاش مجدد
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({hasError: false, errorMessage: ''});
+                  this.props.onResetSession();
+                }}
+                className="px-4 py-2 text-xs font-medium border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                خروج و بازگشت به صفحه ورود
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
   }
 }
 
@@ -340,6 +449,11 @@ export default function App() {
     };
   }, []);
 
+  const pushToastRef = useRef(pushToast);
+  useEffect(() => {
+    pushToastRef.current = pushToast;
+  }, [pushToast]);
+
   const fetchOverview = useCallback(async () => {
     try {
       const res = await fetch(
@@ -354,14 +468,14 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'خطا در برقراری ارتباط با سرور';
       setLoadError(msg);
-      pushToast({
+      pushToastRef.current({
         variant: 'error',
         category: 'critical',
         title: 'خطای حیاتی در ارتباط با سرور',
         description: msg,
       });
     }
-  }, [activeInstitution, activeRole, pushToast]);
+  }, [activeInstitution, activeRole]);
 
   const fetchShg = useCallback(async () => {
     try {
@@ -411,7 +525,9 @@ export default function App() {
     } catch {
       // ignore storage errors
     }
-    setActiveInstitution(session.institution);
+    setLoadError(null);
+    setQuickSearchOpen(false);
+    setActiveInstitution(session.institution === 'edalat' ? 'edalat' : 'darolahsan');
     setActiveRole(session.role);
     setAuthSession(session);
     setActiveSection('overview');
@@ -424,13 +540,13 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    try {
-      localStorage.removeItem('naysar_auth_session_v1');
-      sessionStorage.removeItem('naysar_auth_session_temp_v1');
-    } catch {
-      // ignore
-    }
+    clearStoredAuthSession();
     setAuthSession(null);
+    setLoadError(null);
+    setQuickSearchOpen(false);
+    setPendingInspectCaseId(null);
+    setActiveWorkflowCaseId(null);
+    setEditingCaseId(null);
     setActiveSection('overview');
     setMobileMenuOpen(false);
   };
@@ -611,7 +727,8 @@ export default function App() {
         : 'عدالت و برابری کردستان';
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 print:bg-white print:text-slate-900 transition-colors duration-200">
+    <SessionErrorBoundary onResetSession={handleLogout}>
+      <div className="min-h-screen flex bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 print:bg-white print:text-slate-900 transition-colors duration-200">
       {/* Desktop Minimal Collapsible Sidebar (RTL Right Side) */}
       <aside
         aria-label="منوی کناری سامانه"
@@ -1328,6 +1445,7 @@ export default function App() {
         onDismiss={dismissToast}
         position={uiPrefs.toast.position}
       />
-    </div>
+      </div>
+    </SessionErrorBoundary>
   );
 }

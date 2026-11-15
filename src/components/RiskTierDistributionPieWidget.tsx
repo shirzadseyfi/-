@@ -279,7 +279,7 @@ export const RiskTierDistributionPieWidget: React.FC<
               </div>
             ) : (
               <>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={270} minWidth={100}>
                   <PieChart>
                     <Pie
                       data={activePieData}

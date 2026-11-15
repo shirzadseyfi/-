@@ -1424,8 +1424,15 @@ async function startServer() {
 
   // 1. Dashboard Summary & Blocks
   app.get('/api/overview', (req, res) => {
-    const institution = (req.query.institution as InstitutionId) || 'darolahsan';
-    const role = (req.query.role as UserRole) || 'case_worker';
+    const rawInst = req.query.institution;
+    const rawRole = req.query.role;
+    const institution: InstitutionId = rawInst === 'edalat' ? 'edalat' : 'darolahsan';
+    const role: UserRole =
+      rawRole === 'executive_manager' ||
+      rawRole === 'privacy_officer' ||
+      rawRole === 'system_admin'
+        ? rawRole
+        : 'case_worker';
 
     const summary: DashboardSummary = {
       totalActiveCases: initialCases.filter((c) => c.coverageStatus !== 'GRADUATED').length,
@@ -3656,23 +3663,37 @@ ${JSON.stringify(anonymizedCases, null, 2)}
   ];
 
   app.post('/api/auth/login', (req, res) => {
-    const {username, password} = req.body as {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as {
       username?: string;
       password?: string;
     };
 
-    const cleanUser = (username || '').trim().toLowerCase();
-    const cleanPass = password || '';
+    const toAsciiDigits = (value: string) =>
+      value
+        .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+        .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
 
-    if (!cleanUser || !cleanPass) {
+    const cleanUser = toAsciiDigits(String(body.username || ''))
+      .trim()
+      .toLowerCase();
+    const rawPass = String(body.password || '');
+    const normalizedPass = toAsciiDigits(rawPass).trim();
+
+    if (!cleanUser || !rawPass) {
       return res.status(400).json({
         error: 'وارد کردن نام کاربری و رمز عبور الزامی است.',
       });
     }
 
-    const inputPassHash = crypto.createHash('sha256').update(cleanPass).digest('hex');
+    const rawPassHash = crypto.createHash('sha256').update(rawPass).digest('hex');
+    const normalizedPassHash = crypto
+      .createHash('sha256')
+      .update(normalizedPass)
+      .digest('hex');
     const matchedAccount = SYSTEM_ACCOUNTS.find(
-      (acc) => acc.username === cleanUser && acc.passwordHash === inputPassHash,
+      (acc) =>
+        acc.username === cleanUser &&
+        (acc.passwordHash === rawPassHash || acc.passwordHash === normalizedPassHash),
     );
 
     if (!matchedAccount) {

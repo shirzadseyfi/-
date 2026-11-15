@@ -75,20 +75,38 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
     setSubmitting(true);
     try {
+      const normalizedUser = username
+        .trim()
+        .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+        .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          username: username.trim(),
+          username: normalizedUser,
           password,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'ورود ناموفق بود. لطفاً اطلاعات را بررسی کنید.');
+      const rawText = await res.text();
+      let data: {error?: string; session?: AuthUserSession} = {};
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText) as {error?: string; session?: AuthUserSession};
+        } catch {
+          data = {};
+        }
+      }
+      if (!res.ok || !data.session) {
+        setError(
+          data.error ||
+            (res.status >= 500
+              ? 'سرور احراز هویت موقتاً در دسترس نیست. لطفاً چند لحظه دیگر مجدداً تلاش کنید.'
+              : 'ورود ناموفق بود. لطفاً نام کاربری و رمز عبور را بررسی کنید.'),
+        );
         return;
       }
-      onLoginSuccess(data.session as AuthUserSession, rememberMe);
+      onLoginSuccess(data.session, rememberMe);
     } catch {
       setError('خطا در برقراری ارتباط با سرور احراز هویت.');
     } finally {
