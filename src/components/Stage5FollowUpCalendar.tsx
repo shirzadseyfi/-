@@ -5,6 +5,8 @@ import {
   ChevronRight,
   Clock,
   ExternalLink,
+  ClipboardList,
+  Activity,
 } from 'lucide-react';
 import {toEnglishDigits, toPersianDigits} from '../utils/persianDateTime';
 import type {CaseRecordView} from '../types';
@@ -21,8 +23,9 @@ interface JalaliDateParts {
   day: number;
 }
 
-interface Stage5DueItem {
+interface FollowUpCalendarItem {
   caseRecord: CaseRecordView;
+  eventType: 'monitoring' | 'intervention_review';
   dueDateKey: string; // YYYY/MM/DD (English digits)
   dueDatePersian: string; // ۱۴۰۵/۰۸/۲۶
   dueParts: JalaliDateParts;
@@ -96,7 +99,6 @@ function parseJalaliDateString(raw?: string): JalaliDateParts | null {
 }
 
 function findDateForJalali(targetYear: number, targetMonth: number, targetDay: number): Date {
-  // Start around noon UTC so Asia/Tehran stays squarely on the same calendar date
   const now = new Date();
   const todayJ = getJalaliParts(now);
   const approxDays =
@@ -119,7 +121,6 @@ function findDateForJalali(targetYear: number, targetMonth: number, targetDay: n
       (targetDay - cur.day);
     const step = diff === 0 ? 0 : diff;
     candidate = new Date(candidate.getTime() + step * 86400000);
-    // Fine single-day correction if needed
     const check = getJalaliParts(candidate);
     if (check.year === targetYear && check.month === targetMonth && check.day === targetDay) {
       return candidate;
@@ -133,7 +134,7 @@ function findDateForJalali(targetYear: number, targetMonth: number, targetDay: n
 
 function getJalaliMonthMeta(year: number, month: number): {
   daysInMonth: number;
-  startWeekday: number; // 0 = Saturday .. 6 = Friday
+  startWeekday: number;
 } {
   const firstDayDate = findDateForJalali(year, month, 1);
   const shortWd = tehranWeekdayFormatter.format(firstDayDate);
@@ -166,56 +167,72 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
   const [viewMonth, setViewMonth] = useState<number>(todayParts.month);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [taskViewMode, setTaskViewMode] = useState<'all_upcoming' | 'selected_day'>('all_upcoming');
+  const [filterType, setFilterType] = useState<'all' | 'monitoring' | 'intervention'>('all');
 
-  const {dueItems, maskedStage5Count} = useMemo(() => {
-    const items: Stage5DueItem[] = [];
-    let maskedCount = 0;
+  const {dueItems, maskedCount} = useMemo(() => {
+    const items: FollowUpCalendarItem[] = [];
+    let masked = 0;
 
     for (const c of cases) {
-      if (c.stage !== 5) continue;
       if (c.isMasked || !c.workflow) {
-        maskedCount += 1;
+        masked += 1;
         continue;
       }
 
-      const rawDate = c.workflow.stage5Monitoring?.nextFollowUpDate;
-      const parsed = parseJalaliDateString(rawDate);
-      if (!parsed) continue;
+      // Collect Stage 5 monitoring follow-up date and Stage 3 intervention review date
+      const followUpDateStr = c.workflow.stage5Monitoring?.nextFollowUpDate;
+      const reviewDateStr = c.workflow.stage3Plan?.targetReviewDate;
 
-      const dueDateKey = makeDateKey(parsed.year, parsed.month, parsed.day);
-      const dueDateObj = findDateForJalali(parsed.year, parsed.month, parsed.day);
-      const diffDays = Math.round((dueDateObj.getTime() - todayDateObj.getTime()) / 86400000);
+      const datesToProcess: Array<{raw: string | undefined; type: 'monitoring' | 'intervention_review'}> = [];
+      if (followUpDateStr) datesToProcess.push({raw: followUpDateStr, type: 'monitoring'});
+      if (reviewDateStr) datesToProcess.push({raw: reviewDateStr, type: 'intervention_review'});
 
-      let status: Stage5DueItem['status'] = 'upcoming';
-      if (diffDays < 0) status = 'overdue';
-      else if (diffDays === 0) status = 'today';
-      else if (diffDays <= 3) status = 'soon';
+      for (const entry of datesToProcess) {
+        const parsed = parseJalaliDateString(entry.raw);
+        if (!parsed) continue;
 
-      items.push({
-        caseRecord: c,
-        dueDateKey,
-        dueDatePersian: toPersianDigits(dueDateKey),
-        dueParts: parsed,
-        diffDays,
-        status,
-        stabilityMonths: c.workflow.stage5Monitoring.stabilityMonthsCount ?? 0,
-        visitsCount: c.workflow.stage5Monitoring.visits?.length ?? 0,
-      });
+        const dueDateKey = makeDateKey(parsed.year, parsed.month, parsed.day);
+        const dueDateObj = findDateForJalali(parsed.year, parsed.month, parsed.day);
+        const diffDays = Math.round((dueDateObj.getTime() - todayDateObj.getTime()) / 86400000);
+
+        let status: FollowUpCalendarItem['status'] = 'upcoming';
+        if (diffDays < 0) status = 'overdue';
+        else if (diffDays === 0) status = 'today';
+        else if (diffDays <= 3) status = 'soon';
+
+        items.push({
+          caseRecord: c,
+          eventType: entry.type,
+          dueDateKey,
+          dueDatePersian: toPersianDigits(dueDateKey),
+          dueParts: parsed,
+          diffDays,
+          status,
+          stabilityMonths: c.workflow.stage5Monitoring?.stabilityMonthsCount ?? 0,
+          visitsCount: c.workflow.stage5Monitoring?.visits?.length ?? 0,
+        });
+      }
     }
 
     items.sort((a, b) => a.diffDays - b.diffDays);
-    return {dueItems: items, maskedStage5Count: maskedCount};
+    return {dueItems: items, maskedCount: masked};
   }, [cases, todayDateObj]);
 
+  const filteredDueItems = useMemo(() => {
+    if (filterType === 'monitoring') return dueItems.filter((i) => i.eventType === 'monitoring');
+    if (filterType === 'intervention') return dueItems.filter((i) => i.eventType === 'intervention_review');
+    return dueItems;
+  }, [dueItems, filterType]);
+
   const itemsByDate = useMemo(() => {
-    const map = new Map<string, Stage5DueItem[]>();
-    for (const item of dueItems) {
+    const map = new Map<string, FollowUpCalendarItem[]>();
+    for (const item of filteredDueItems) {
       const list = map.get(item.dueDateKey) || [];
       list.push(item);
       map.set(item.dueDateKey, list);
     }
     return map;
-  }, [dueItems]);
+  }, [filteredDueItems]);
 
   const monthMeta = useMemo(
     () => getJalaliMonthMeta(viewYear, viewMonth),
@@ -239,15 +256,15 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
     return cells;
   }, [monthMeta, viewYear, viewMonth]);
 
-  const overdueCount = dueItems.filter((i) => i.status === 'overdue').length;
-  const nearTermCount = dueItems.filter((i) => i.diffDays >= 0 && i.diffDays <= 7).length;
+  const overdueCount = filteredDueItems.filter((i) => i.status === 'overdue').length;
+  const nearTermCount = filteredDueItems.filter((i) => i.diffDays >= 0 && i.diffDays <= 7).length;
 
   const displayedTasks = useMemo(() => {
     if (taskViewMode === 'selected_day' && selectedDateKey) {
       return itemsByDate.get(selectedDateKey) || [];
     }
-    return dueItems;
-  }, [taskViewMode, selectedDateKey, itemsByDate, dueItems]);
+    return filteredDueItems;
+  }, [taskViewMode, selectedDateKey, itemsByDate, filteredDueItems]);
 
   const handlePrevMonth = () => {
     if (viewMonth === 1) {
@@ -288,36 +305,84 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
 
   return (
     <section
-      aria-label="تقویم سررسید پیگیری‌های مرحله ۵"
-      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-5"
+      aria-label="تقویم تعاملی سررسید پایش و برنامه‌های مداخله"
+      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5 shadow-xs"
     >
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div className="space-y-1">
-          <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
-            تقویم سررسید پیگیری‌های مرحله ۵ (پایش مستمر)
-          </h2>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+              تقویم تعاملی سررسید پایش پرونده‌ها و برنامه‌های مداخله
+            </h2>
+          </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            علامت‌گذاری تاریخ‌های سررسید بازدید و پایش دوره‌ای خانوارهای مرحله ۵ برای برنامه‌ریزی روزانه مددکاران
+            نمایش تاریخ‌های پایش دوره‌ای (مرحله ۵) و بازبینی برنامه‌های مداخله (مرحله ۳) بر اساس فیلد تاریخ پایش و بازبینی
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 text-xs tabular-nums shrink-0">
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {/* Filter Type Segment */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200/70 dark:border-slate-700/70 text-xs">
+            <button
+              type="button"
+              onClick={() => setFilterType('all')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                filterType === 'all'
+                  ? 'bg-white dark:bg-slate-900 text-teal-800 dark:text-teal-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              همه ({toPersianDigits(dueItems.length)})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterType('monitoring')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                filterType === 'monitoring'
+                  ? 'bg-white dark:bg-slate-900 text-teal-800 dark:text-teal-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              پایش مستمر
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterType('intervention')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                filterType === 'intervention'
+                  ? 'bg-white dark:bg-slate-900 text-teal-800 dark:text-teal-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              برنامه مداخله
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Chips */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs tabular-nums bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
+        <div className="flex flex-wrap items-center gap-3">
           {overdueCount > 0 && (
-            <span className="font-semibold text-red-700 dark:text-red-400">
-              {toPersianDigits(overdueCount)} پیگیری عقب‌افتاده
+            <span className="font-bold text-red-700 dark:text-red-400 inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+              {toPersianDigits(overdueCount)} موعد عقب‌افتاده
             </span>
           )}
           <span className="font-semibold text-amber-700 dark:text-amber-400">
             {toPersianDigits(nearTermCount)} سررسید تا ۷ روز آینده
           </span>
-          <span className="font-semibold text-slate-700 dark:text-slate-300">
-            مجموع: {toPersianDigits(dueItems.length)} پرونده
-          </span>
         </div>
+        <span className="font-semibold text-slate-700 dark:text-slate-300">
+          کل رویدادهای تقویم: {toPersianDigits(filteredDueItems.length)} مورد
+        </span>
       </div>
 
-      {/* Main Split: Compact Calendar + Daily Task Queue */}
+      {/* Main Split: Interactive Calendar + Task List */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Mini Persian Calendar */}
         <div className="lg:col-span-5 border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/40 dark:bg-slate-800/30 space-y-3">
@@ -392,7 +457,7 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
                   type="button"
                   onClick={() => handleSelectDay(cell.dateKey!)}
                   aria-label={`روز ${toPersianDigits(cell.day)} ${PERSIAN_MONTH_NAMES[viewMonth - 1]}${
-                    hasDue ? ` · ${toPersianDigits(dayItems.length)} سررسید پیگیری` : ''
+                    hasDue ? ` · ${toPersianDigits(dayItems.length)} رویداد` : ''
                   }`}
                   className={`h-10 rounded-lg text-xs font-medium tabular-nums relative flex flex-col items-center justify-center transition-colors ${
                     isSelected
@@ -440,25 +505,25 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-teal-600 dark:bg-teal-400" />
-              در برنامه آتی
+              آتی
             </span>
           </div>
         </div>
 
-        {/* Daily Follow-up Tasks List */}
+        {/* Daily Schedule Queue List */}
         <div className="lg:col-span-7 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
               <button
                 type="button"
                 onClick={() => setTaskViewMode('all_upcoming')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
                   taskViewMode === 'all_upcoming'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                همه سررسیدهای مرحله ۵ ({toPersianDigits(dueItems.length)})
+                همه سررسیدها ({toPersianDigits(filteredDueItems.length)})
               </button>
               <button
                 type="button"
@@ -466,9 +531,9 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
                   if (!selectedDateKey) setSelectedDateKey(todayKey);
                   setTaskViewMode('selected_day');
                 }}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
                   taskViewMode === 'selected_day'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
@@ -479,9 +544,9 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
               </button>
             </div>
 
-            {maskedStage5Count > 0 && (
+            {maskedCount > 0 && (
               <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                {toPersianDigits(maskedStage5Count)} پرونده مرحله ۵ در مؤسسه همکار (محرمانه)
+                {toPersianDigits(maskedCount)} پرونده در مؤسسه همکار (محرمانه)
               </span>
             )}
           </div>
@@ -491,23 +556,23 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
               <CalendarDays className="w-6 h-6 text-slate-400 mx-auto" />
               <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 {taskViewMode === 'selected_day' && selectedDateKey
-                  ? `در تاریخ ${toPersianDigits(selectedDateKey)} سررسید پیگیری مرحله ۵ ثبت نشده است.`
-                  : 'در حال حاضر پرونده فعالی با سررسید پیگیری در مرحله ۵ برای این مؤسسه وجود ندارد.'}
+                  ? `در تاریخ ${toPersianDigits(selectedDateKey)} رویداد پایش یا مداخله‌ای ثبت نشده است.`
+                  : 'در حال حاضر رویداد سررسید فعالی برای این فیلتر وجود ندارد.'}
               </div>
-              {taskViewMode === 'selected_day' && dueItems.length > 0 && (
+              {taskViewMode === 'selected_day' && filteredDueItems.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setTaskViewMode('all_upcoming')}
                   className="text-xs font-semibold text-teal-700 dark:text-teal-400 hover:underline underline-offset-4"
                 >
-                  مشاهده همه سررسیدهای مرحله ۵
+                  مشاهده همه سررسیدها
                 </button>
               )}
             </div>
           ) : (
             <div className="border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-200 dark:divide-slate-800 overflow-hidden">
               {displayedTasks.map((item) => {
-                const {caseRecord} = item;
+                const {caseRecord, eventType} = item;
                 const statusTone =
                   item.status === 'overdue'
                     ? 'text-red-700 dark:text-red-400'
@@ -517,17 +582,43 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
 
                 return (
                   <div
-                    key={caseRecord.id}
+                    key={`${caseRecord.id}-${eventType}`}
                     className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
                   >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400 tabular-nums">
+                    <div className="space-y-1.5 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span
+                          className={`px-2 py-0.5 rounded font-bold inline-flex items-center gap-1 ${
+                            eventType === 'monitoring'
+                              ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800'
+                              : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+                          }`}
+                        >
+                          {eventType === 'monitoring' ? (
+                            <>
+                              <Activity className="w-3 h-3" />
+                              پایش مستمر (مرحله ۵)
+                            </>
+                          ) : (
+                            <>
+                              <ClipboardList className="w-3 h-3" />
+                              برنامه مداخله (مرحله ۳)
+                            </>
+                          )}
+                        </span>
+                        <span className="font-mono font-semibold text-slate-500 dark:text-slate-400 tabular-nums">
                           {caseRecord.id}
                         </span>
                         <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">
                           ·
                         </span>
+                        <span className={`font-semibold tabular-nums inline-flex items-center gap-1 ${statusTone}`}>
+                          <Clock className="w-3.5 h-3.5" />
+                          سررسید {item.dueDatePersian} ({formatRelativeDiff(item.diffDays)})
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-600 dark:text-slate-300 font-bold">
                         <button
                           type="button"
                           onClick={() => {
@@ -535,26 +626,16 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
                             setViewMonth(item.dueParts.month);
                             setSelectedDateKey(item.dueDateKey);
                           }}
-                          className="font-bold text-slate-900 dark:text-slate-100 hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
-                          title="نمایش در تقویم"
+                          className="hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
                         >
                           {caseRecord.fullName}
                         </button>
-                        <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">
+                        <span aria-hidden="true" className="text-slate-300 dark:text-slate-600 font-normal">
                           ·
                         </span>
-                        <span className={`text-xs font-semibold tabular-nums inline-flex items-center gap-1 ${statusTone}`}>
-                          <Clock className="w-3.5 h-3.5" />
-                          سررسید {item.dueDatePersian} ({formatRelativeDiff(item.diffDays)})
+                        <span className="text-slate-500 dark:text-slate-400 font-normal">
+                          {caseRecord.blockName}
                         </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                        <span>{caseRecord.blockName}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>ثبات درآمد: {toPersianDigits(item.stabilityMonths)} از ۶ ماه</span>
-                        <span aria-hidden="true">·</span>
-                        <span>نوبت پایش ثبت‌شده: {toPersianDigits(item.visitsCount)}</span>
                       </div>
                     </div>
 
@@ -571,7 +652,7 @@ export const Stage5FollowUpCalendar: React.FC<Stage5FollowUpCalendarProps> = ({
                         onClick={() => onOpenWorkflow(caseRecord.id)}
                         className="px-3 py-1.5 text-xs font-medium text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors inline-flex items-center gap-1 whitespace-nowrap"
                       >
-                        <span>ثبت پایش مرحله ۵</span>
+                        <span>مدیریت مورد</span>
                         <ExternalLink className="w-3 h-3" />
                       </button>
                     </div>

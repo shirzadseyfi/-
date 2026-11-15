@@ -1,10 +1,14 @@
 import React, {useState} from 'react';
 import {Lock} from 'lucide-react';
-import type {AuditLogEntry, InstitutionId, UserRole} from '../types';
+import type {AuditLogEntry, CaseRecordView, InstitutionId, UiThemeAccent, UserRole} from '../types';
+import {SecurityComparativeChartsWidget} from './SecurityComparativeChartsWidget';
 
 interface SecurityRoadmapViewProps {
   auditLogs: AuditLogEntry[];
   onRefreshLogs: () => Promise<void>;
+  cases?: CaseRecordView[];
+  isDark?: boolean;
+  themeAccent?: UiThemeAccent;
 }
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -109,6 +113,9 @@ const ACTION_LABELS: Record<AuditLogEntry['action'], string> = {
 export const SecurityRoadmapView: React.FC<SecurityRoadmapViewProps> = ({
   auditLogs,
   onRefreshLogs,
+  cases = [],
+  isDark = false,
+  themeAccent = 'teal',
 }) => {
   const [selectedPhaseIndex, setSelectedPhaseIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -135,6 +142,13 @@ export const SecurityRoadmapView: React.FC<SecurityRoadmapViewProps> = ({
           رویدادها و برنامه ۵ فازی استقرار سامانه مشترک.
         </p>
       </div>
+
+      {/* Comparative Charts for Security Supervisors & Auditors */}
+      <SecurityComparativeChartsWidget
+        cases={cases}
+        isDark={isDark}
+        themeAccent={themeAccent}
+      />
 
       {/* Data Partitioning & RBAC */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

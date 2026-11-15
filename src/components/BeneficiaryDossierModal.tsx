@@ -7,6 +7,8 @@ import {
   Printer,
   ShieldCheck,
   X,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import {InstitutionEmblem, InstitutionalLogo} from './InstitutionalLogo';
 import type {CaseRecordView, CaseStage, DeliveredServiceEntry, InstitutionId} from '../types';
@@ -78,6 +80,7 @@ export const BeneficiaryDossierModal: React.FC<BeneficiaryDossierModalProps> = (
   // Masked partner cases are always locked to redacted mode; owned cases allow toggling between Official and Publishable
   const [publishableMode, setPublishableMode] = useState<boolean>(caseRecord.isMasked);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   useEffect(() => {
     setPublishableMode(caseRecord.isMasked);
@@ -431,7 +434,13 @@ export const BeneficiaryDossierModal: React.FC<BeneficiaryDossierModalProps> = (
         }
       }}
     >
-      <div className="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl dossier-print-panel">
+      <div
+        className={`bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 transition-all overflow-y-auto shadow-2xl dossier-print-panel ${
+          isFullscreen
+            ? 'w-screen h-screen max-w-none max-h-none rounded-none'
+            : 'rounded-2xl max-w-5xl max-h-[92vh]'
+        }`}
+      >
         {/* Sticky Screen Toolbar (Hidden during print) */}
         <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 print:hidden">
           <div>
@@ -507,6 +516,20 @@ export const BeneficiaryDossierModal: React.FC<BeneficiaryDossierModalProps> = (
             >
               <Printer className="w-3.5 h-3.5" />
               {isPrinting ? 'در حال آماده‌سازی...' : 'چاپ / PDF'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsFullscreen((prev) => !prev)}
+              title={isFullscreen ? 'خروج از حالت تمام‌صفحه' : 'ورود به حالت تمام‌صفحه'}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
+            >
+              {isFullscreen ? (
+                <Minimize2 className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
+              )}
+              <span>{isFullscreen ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه'}</span>
             </button>
 
             <button

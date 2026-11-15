@@ -22,6 +22,9 @@ import {
   Volume2,
   Wand2,
   WifiOff,
+  Maximize2,
+  Minimize2,
+  Printer,
 } from 'lucide-react';
 import type {
   CaseRecordView,
@@ -292,6 +295,7 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState<string | null>(null);
   const [draftStatusNotice, setDraftStatusNotice] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   const isRestrictedRole = activeRole === 'privacy_officer' || activeRole === 'system_admin';
 
@@ -803,6 +807,11 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
     setVisitTime(parts.shortTime);
   };
 
+  const handlePrintAssessment = () => {
+    window.print();
+    onDraftToast?.('چاپ فرم ارزیابی', 'نسخه فیزیکی فرم ارزیابی معیشتی برای چاپ / PDF آماده شد.');
+  };
+
   const handleModeSwitch = (nextMode: WizardMode) => {
     setMode(nextMode);
     setCurrentStep(1);
@@ -1290,7 +1299,13 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
       : null;
 
   return (
-    <div className="space-y-6">
+    <div
+      className={`space-y-6 transition-all ${
+        isFullscreen
+          ? 'fixed inset-0 z-50 w-screen h-screen max-w-none max-h-none overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4 sm:p-10 shadow-2xl'
+          : ''
+      }`}
+    >
       {/* Page Header */}
       <div className="border-b border-slate-200 dark:border-slate-800 pb-6 flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div className="space-y-1.5 max-w-3xl">
@@ -1303,30 +1318,46 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
           </p>
         </div>
 
-        {/* Mode Segmented Control */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0 self-start lg:self-auto">
+        {/* Mode Segmented Control & Fullscreen Toggle */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0">
+            <button
+              type="button"
+              onClick={() => handleModeSwitch('new')}
+              className={`px-3.5 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
+                mode === 'new'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              تشکیل پرونده جدید
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSwitch('update')}
+              className={`px-3.5 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 ${
+                mode === 'update'
+                  ? 'bg-white dark:bg-slate-900 text-teal-800 dark:text-teal-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <ClipboardEdit className="w-4 h-4" />
+              بروزرسانی پرونده قبلی ({toPersianDigits(editableCases.length)})
+            </button>
+          </div>
+
           <button
             type="button"
-            onClick={() => handleModeSwitch('new')}
-            className={`px-3.5 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-              mode === 'new'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-            }`}
+            onClick={() => setIsFullscreen((prev) => !prev)}
+            title={isFullscreen ? 'خروج از حالت تمام‌صفحه' : 'ورود به حالت تمام‌صفحه'}
+            className="px-3.5 py-2 text-xs sm:text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            تشکیل پرونده جدید
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeSwitch('update')}
-            className={`px-3.5 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 ${
-              mode === 'update'
-                ? 'bg-white dark:bg-slate-900 text-teal-800 dark:text-teal-300 shadow-xs'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <ClipboardEdit className="w-4 h-4" />
-            بروزرسانی پرونده قبلی ({toPersianDigits(editableCases.length)})
+            {isFullscreen ? (
+              <Minimize2 className="w-4 h-4 text-teal-700 dark:text-teal-400" />
+            ) : (
+              <Maximize2 className="w-4 h-4 text-teal-700 dark:text-teal-400" />
+            )}
+            <span>{isFullscreen ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه'}</span>
           </button>
         </div>
       </div>
@@ -2259,17 +2290,26 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
                     </select>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    یادداشت تخصصی مددکار برای پیگیری بعدی
-                  </label>
-                  <input
-                    type="text"
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      یادداشت‌های محرمانه و خصوصی پرونده (Private Notes)
+                    </label>
+                    <span className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/60">
+                      محرمانه · فقط مددکار و ناظر امنیتی
+                    </span>
+                  </div>
+                  <textarea
+                    rows={3}
                     value={caseWorkerNote}
                     onChange={(e) => setCaseWorkerNote(e.target.value)}
-                    placeholder="جمع‌بندی پیگیری، ارجاع به صندوق خودیاری یا برنامه بازدید بعدی..."
-                    className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg"
+                    placeholder="ثبت نکات محرمانه خانوار، چالش‌های حمایتی حساس، ارجاع محرمانه یا ملاحظات خاص که فقط توسط مددکار مسئول یا ناظر امنیتی قابل مشاهده است..."
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg leading-relaxed"
                   />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    این یادداشت‌ها در پایگاه داده اختصاصی مؤسسه رمزنگاری‌شده و در خروجی‌های عمومی یا قابل انتشار درج نمی‌گردند.
+                  </p>
                 </div>
               </div>
             </section>
@@ -2470,6 +2510,14 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
                     )}
                     <button
                       type="button"
+                      onClick={handlePrintAssessment}
+                      className="px-4 py-2 text-xs sm:text-sm font-medium border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors inline-flex items-center gap-1.5"
+                    >
+                      <Printer className="w-4 h-4 text-teal-700 dark:text-teal-400" />
+                      چاپ فرم / PDF
+                    </button>
+                    <button
+                      type="button"
                       onClick={onNavigateToOverview}
                       className="px-4 py-2 text-xs sm:text-sm font-medium border border-teal-300 dark:border-teal-800 bg-white dark:bg-slate-900 text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
                     >
@@ -2485,7 +2533,15 @@ export const AssessmentConsentView: React.FC<AssessmentConsentViewProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={handlePrintAssessment}
+                    className="px-4 py-2.5 text-xs sm:text-sm font-medium border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors inline-flex items-center gap-1.5"
+                  >
+                    <Printer className="w-4 h-4 text-teal-700 dark:text-teal-400" />
+                    چاپ فرم ارزیابی / PDF
+                  </button>
                   <button
                     type="button"
                     disabled={submitting || isRestrictedRole}

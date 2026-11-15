@@ -17,6 +17,8 @@ import {CaseManagementWorkflowModal} from './CaseManagementWorkflowModal';
 import {InstitutionEmblem} from './InstitutionalLogo';
 import {NaysarInteractiveMap} from './NaysarInteractiveMap';
 import {Stage5FollowUpCalendar} from './Stage5FollowUpCalendar';
+import {AppointmentSchedulerWidget} from './AppointmentSchedulerWidget';
+import {ActivityHeatmapWidget} from './ActivityHeatmapWidget';
 import {StageDistributionPieWidget} from './StageDistributionPieWidget';
 import {StageForecastPanel} from './StageForecastPanel';
 import {CaseworkerOverloadForecastWidget} from './CaseworkerOverloadForecastWidget';
@@ -717,6 +719,24 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         cases={cases}
         onInspectCase={(item) => setInspectedCase(item)}
         onOpenWorkflow={(caseId) => setWorkflowCaseId(caseId)}
+      />
+
+      {/* Appointment Scheduler Widget */}
+      <AppointmentSchedulerWidget
+        cases={cases}
+        activeInstitution={activeInstitution}
+        isDark={isDark}
+        themeAccent={themeAccent}
+        onExportToast={onExportToast}
+        onInspectCase={(item) => setInspectedCase(item)}
+      />
+
+      {/* Activity Heatmap Widget using D3 */}
+      <ActivityHeatmapWidget
+        cases={cases}
+        isDark={isDark}
+        themeAccent={themeAccent}
+        onExportToast={onExportToast}
       />
 
       {/* Caseworker Overload Forecast Widget */}

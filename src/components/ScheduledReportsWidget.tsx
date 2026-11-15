@@ -1,24 +1,29 @@
 import React, {useState, useEffect} from 'react';
-import {Calendar, Clock, Plus, CheckCircle2, Trash2, FileText, Send} from 'lucide-react';
-import type {UiThemeAccent} from '../types';
+import {Calendar, Clock, Plus, CheckCircle2, Trash2, FileText, Send, Download} from 'lucide-react';
+import type {UiThemeAccent, CaseRecordView, ReportsPayload} from '../types';
+import {exportAnonymizedCaseStatisticsCsv} from '../utils/excelExport';
 
 interface ScheduledReportItem {
   id: string;
   title: string;
   frequency: 'monthly' | 'quarterly' | 'yearly' | 'weekly';
-  format: 'pdf' | 'excel' | 'summary';
+  format: 'pdf' | 'excel' | 'csv' | 'summary';
   targetRecipient: string;
   nextRunDate: string;
   status: 'active' | 'paused';
 }
 
 interface ScheduledReportsWidgetProps {
+  cases?: CaseRecordView[];
+  report?: ReportsPayload | null;
   isDark?: boolean;
   themeAccent?: UiThemeAccent;
   onExportToast?: (title: string, description: string) => void;
 }
 
 export const ScheduledReportsWidget: React.FC<ScheduledReportsWidgetProps> = ({
+  cases = [],
+  report = null,
   isDark: _isDark,
   themeAccent: _themeAccent = 'teal',
   onExportToast,
@@ -90,6 +95,18 @@ export const ScheduledReportsWidget: React.FC<ScheduledReportsWidgetProps> = ({
     onExportToast?.('حذف زمان‌بندی', 'گزارش زمان‌بندی‌شده از تقویم حذف گردید.');
   };
 
+  const runMonthlyAnonymizedCsvExportTask = () => {
+    exportAnonymizedCaseStatisticsCsv({
+      cases,
+      report,
+      scopeLabel: 'ناحیه منفصل شهری نایسر - خروجی خودکار ماهانه آمار ناشناس‌شده',
+    });
+    onExportToast?.(
+      'وظیفه زمان‌بندی‌شده ماهانه اجرا شد',
+      'خروجی خودکار ماهانه آمار ناشناس‌شده پرونده‌ها در قالب فایل CSV با موفقیت صادر شد.',
+    );
+  };
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-sm">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
@@ -99,7 +116,7 @@ export const ScheduledReportsWidget: React.FC<ScheduledReportsWidgetProps> = ({
               تقویم خودکار خروجی‌ها
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              برنامه‌ریزی خودکار PDF عملکرد ماهانه، فصلی و سالیانه
+              برنامه‌ریزی خودکار PDF و CSV عملکرد ماهانه، فصلی و سالیانه
             </span>
           </div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">
@@ -112,8 +129,34 @@ export const ScheduledReportsWidget: React.FC<ScheduledReportsWidgetProps> = ({
 
         <div className="flex items-center gap-2 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 rounded-xl px-3.5 py-2 text-xs font-semibold text-teal-800 dark:text-teal-300 shrink-0 mx-auto md:mx-0">
           <Calendar className="w-4 h-4 shrink-0" />
-          <span>تعداد برنامه‌های فعال: {schedules.filter((s) => s.status === 'active').length} مورد</span>
+          <span>تعداد برنامه‌های فعال: {schedules.filter((s) => s.status === 'active').length + 1} مورد</span>
         </div>
+      </div>
+
+      {/* Monthly Automated Anonymized CSV Export Task Runner */}
+      <div className="bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900/60 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-sky-100 dark:bg-sky-900 text-sky-800 dark:text-sky-300">
+              وظیفه خودکار ماهانه (فعال)
+            </span>
+            <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">
+              صادرات خودکار آمار ناشناس‌شده پرونده‌ها (Monthly Anonymized CSV Export)
+            </h3>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            اجرای زمان‌بندی‌شده اول هر ماه جهت استخراج آماری و ناشناس‌سازی داده‌های مددجویان (سازگار با منطق CSV در ReportsView).
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={runMonthlyAnonymizedCsvExportTask}
+          className="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-700 hover:bg-sky-800 text-white transition-colors inline-flex items-center gap-1.5 shrink-0 shadow-xs"
+        >
+          <Download className="w-4 h-4" />
+          <span>اجرای فوری وظیفه ماهانه (CSV)</span>
+        </button>
       </div>
 
       {/* Add New Schedule Form */}

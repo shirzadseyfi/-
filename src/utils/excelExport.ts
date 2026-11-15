@@ -444,3 +444,85 @@ export function exportSingleBeneficiaryDossierToExcel(params: {
   const suffix = isRedacted ? 'publishable' : 'official';
   XLSX.writeFile(wb, `naysar-dossier-${caseRecord.id}-${suffix}.xlsx`);
 }
+
+export function exportReportsToCsv(params: {
+  report: ReportsPayload;
+  workers: CaseWorkerPerformanceItem[];
+  scopeLabel: string;
+}) {
+  const {report, workers, scopeLabel} = params;
+  let csvContent = '\uFEFF'; // UTF-8 BOM for Persian in Excel
+
+  csvContent += `محدوده گزارش:, "${scopeLabel}"\n`;
+  csvContent += `تاریخ تهیه:, "${new Date().toLocaleDateString('fa-IR')}"\n\n`;
+
+  csvContent += `--- روند ۶ ماهه خوداتکایی و توزیع فوریت ---\n`;
+  csvContent += `ماه,خوداتکای تجمعی,خروج موفق ماهانه,هم‌پوشانی پیشگیری‌شده,درجه قرمز (بحرانی),درجه زرد (مستمر),درجه سبز (توانمندسازی),میانگین زمان پاسخ (روز)\n`;
+  for (const r of report.series) {
+    csvContent += `"${r.monthLabel}",${r.graduatedCumulative},${r.graduatedNew},${r.overlapsPrevented},${r.redTier},${r.yellowTier},${r.greenTier},${r.avgResponseDays}\n`;
+  }
+  csvContent += `\n`;
+
+  csvContent += `--- عملکرد مددکاران در ماه گذشته ---\n`;
+  csvContent += `نام مددکار,سمت,مؤسسه,تعداد پرونده بررسی‌شده,هدف ماهانه,تعداد جابجایی مراحل,میانگین سرعت (روز),درصد پیگیری به‌موقع\n`;
+  for (const w of workers) {
+    csvContent += `"${w.name}","${w.roleTitle}","${w.institutionLabel}",${w.reviewedCasesCount},${w.currentMonthTargetCount},${w.stageTransitionsCount},${w.avgTransitionDays},${w.onTimeFollowUpPct}\n`;
+  }
+  csvContent += `\n`;
+
+  csvContent += `--- توزیع درآمد خانوار ---\n`;
+  csvContent += `بازه درآمدی,تعداد خانوار,درصد (٪),وضعیت خط معیشت\n`;
+  for (const inc of report.incomeDistribution) {
+    csvContent += `"${inc.bracketLabel}",${inc.count},${inc.percentage},"${inc.povertyLineStatus}"\n`;
+  }
+
+  const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `naysar-charts-data-${report.institutionFilter}-${Date.now()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+export function exportAnonymizedCaseStatisticsCsv(params: {
+  cases: CaseRecordView[];
+  report?: ReportsPayload | null;
+  scopeLabel: string;
+}) {
+  const {cases, report, scopeLabel} = params;
+  let csvContent = '\uFEFF'; // UTF-8 BOM for Persian in Excel
+
+  csvContent += `گزارش خودکار ماهانه آمار ناشناس‌شده پرونده‌ها (Anonymized Case Statistics)\n`;
+  csvContent += `محدوده:, "${scopeLabel}"\n`;
+  csvContent += `تاریخ تولید خودکار:, "${new Date().toLocaleDateString('fa-IR')}"\n\n`;
+
+  if (report) {
+    csvContent += `--- خلاصه شاخص‌های کلیدی ۶ ماهه ---\n`;
+    csvContent += `ماه,خوداتکای تجمعی,خروج موفق ماهانه,هم‌پوشانی پیشگیری‌شده,درجه قرمز (بحرانی),درجه زرد (مستمر),درجه سبز (توانمندسازی)\n`;
+    for (const r of report.series) {
+      csvContent += `"${r.monthLabel}",${r.graduatedCumulative},${r.graduatedNew},${r.overlapsPrevented},${r.redTier},${r.yellowTier},${r.greenTier}\n`;
+    }
+    csvContent += `\n`;
+  }
+
+  csvContent += `--- فهرست آماری ناشناس‌شده پرونده‌های فعال ---\n`;
+  csvContent += `شناسه پرونده (کد),کد هش امن (SHA-256),مؤسسه متولی,بلوک جغرافیایی,مرحله فعلی,وضعیت پوشش,درجه فوریت,امتیاز کل,مسیر مداخله\n`;
+  for (const c of cases) {
+    const maskedHash = `${c.nationalIdHash.slice(0, 12)}***`;
+    const instLabel = c.owningInstitution === 'darolahsan' ? 'دارالاحسان' : 'عدالت و برابری';
+    csvContent += `"${c.id}","${maskedHash}","${instLabel}","${c.blockName}","مرحله ${c.stage}","${c.coverageStatus}","${c.urgencyTier}",${c.score.total},"${c.servicePath}"\n`;
+  }
+
+  const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `naysar-anonymized-stats-monthly-${Date.now()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+

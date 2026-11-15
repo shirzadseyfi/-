@@ -23,10 +23,13 @@ import type {
   ReportsPayload,
   UiThemeAccent,
 } from '../types';
-import {exportReportsToExcel} from '../utils/excelExport';
+import {exportReportsToExcel, exportReportsToCsv} from '../utils/excelExport';
+import {generateMonthlyGraduatedCsvArchive, downloadCsvArchive, type MonthlyCsvArchiveItem} from '../utils/monthlyAutoExport';
 import {ServiceDemandForecastWidget} from './ServiceDemandForecastWidget';
+import {SuccessGraduationPredictorWidget} from './SuccessGraduationPredictorWidget';
 import {ScheduledReportsWidget} from './ScheduledReportsWidget';
 import {PeriodicReportsManager} from './PeriodicReportsManager';
+import {AnalyticalDashboardWidget} from './AnalyticalDashboardWidget';
 import {apiFetch} from '../utils/staticApiFallback';
 
 interface ReportsViewProps {
@@ -103,6 +106,49 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     over_15m: accentHex,
   };
   const [institutionFilter, setInstitutionFilter] = useState<InstitutionId | 'all'>('all');
+  const [previewArchiveId, setPreviewArchiveId] = useState<string | null>(null);
+  const [selectedBarDetail, setSelectedBarDetail] = useState<{
+    archiveId: string;
+    barType: 'graduated' | 'target';
+  } | null>(null);
+  const [csvArchives, setCsvArchives] = useState<MonthlyCsvArchiveItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('naysar_monthly_auto_csv_archives');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'arch-1',
+        monthLabel: 'مهر ۱۴۰۵',
+        generatedDate: '۱۴۰۵/۰۸/۰۱',
+        graduatedCount: 24,
+        csvDataContent: '\uFEFFبایگانی مهر ۱۴۰۵\n',
+        institutionFilter: 'all',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('naysar_monthly_auto_csv_archives', JSON.stringify(csvArchives));
+    } catch {}
+  }, [csvArchives]);
+
+  const handleGenerateMonthlyArchive = () => {
+    const arch = generateMonthlyGraduatedCsvArchive({
+      cases,
+      monthLabel: 'آبان ۱۴۰۵',
+      institutionFilter,
+    });
+    setCsvArchives((prev) => [arch, ...prev]);
+    onExportToast?.(
+      'آرشیو پایان ماه ایجاد شد',
+      `گزارش خودکار پایان ماه آبان ۱۴۰۵ شامل ${toPersianNum(arch.graduatedCount)} پرونده نهایی‌شده و خروجی موفق آماده دانلود CSV شد.`,
+    );
+  };
   const [report, setReport] = useState<ReportsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -2133,6 +2179,19 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
+  const handleExportCsv = () => {
+    if (!report) return;
+    exportReportsToCsv({
+      report,
+      workers: sortedWorkers,
+      scopeLabel: getInstitutionScopeLabel(institutionFilter),
+    });
+    onExportToast?.(
+      'خروجی CSV نمودارها ذخیره شد',
+      `داده‌های تحلیلی نمودارهای روند ۶ ماهه، عملکرد مددکاران و توزیع درآمد در قالب فایل CSV دانلود شد.`,
+    );
+  };
+
   const lowIncomeHouseholdsCount = report
     ? report.incomeDistribution
         .filter((i) => i.key === 'under_3m' || i.key === '3m_to_6m')
@@ -2288,6 +2347,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               خروجی اکسل (.xlsx)
+            </button>
+
+            <button
+              type="button"
+              disabled={!report || loading}
+              onClick={handleExportCsv}
+              className="px-3 py-2 text-xs font-medium rounded-lg border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-950 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 disabled:opacity-50"
+            >
+              <Download className="w-3.5 h-3.5" />
+              خروجی CSV نمودارها
             </button>
 
             <button
@@ -3351,6 +3420,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           </section>
 
+          {/* Analytical Dashboard Widget (Recharts Trends, Demographics & Graduation) */}
+          <AnalyticalDashboardWidget
+            series={report.series}
+            cases={cases}
+            isDark={effectiveDark}
+            themeAccent={themeAccent}
+            onExportToast={onExportToast}
+          />
+
+          {/* Success Graduation Predictive Model for next 3 months */}
+          <SuccessGraduationPredictorWidget
+            cases={cases}
+            isDark={effectiveDark}
+            themeAccent={themeAccent}
+            onExportToast={onExportToast}
+          />
+
           {/* Service Demand Forecast Widget based on historical stage trends */}
           <ServiceDemandForecastWidget
             isDark={effectiveDark}
@@ -3360,10 +3446,218 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
           {/* Scheduled Reports Widget */}
           <ScheduledReportsWidget
+            cases={cases}
+            report={report}
             isDark={effectiveDark}
             themeAccent={themeAccent}
             onExportToast={onExportToast}
           />
+
+          {/* End-of-Month Automated CSV Archive Section */}
+          <div className={`${cardSurface} border rounded-2xl p-6 space-y-6 shadow-sm print:hidden`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 tabular-nums">
+                    ماژول خودکار پایان ماه
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    بایگانی و صادرات مستقیم CSV پرونده‌های نهایی‌شده و خروجی‌های موفق
+                  </span>
+                </div>
+                <h3 className={`text-lg font-bold ${headingTone} mt-1`}>
+                  آرشیو خودکار پایان ماه خروجی‌های موفق (End-of-Month Graduated CSV Archives)
+                </h3>
+                <p className={`text-xs sm:text-sm ${mutedTone} mt-0.5`}>
+                  در انتهای هر ماه میلادی، تمامی آمار پرونده‌های نهایی‌شده (مرحله ۶ یا خروج موفق) به صورت فایل CSV تجمیع شده و آماده دانلود مستقیم است.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerateMonthlyArchive}
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors inline-flex items-center gap-1.5 shrink-0 shadow-xs"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>ایجاد آرشیو پایان ماه جاری (CSV)</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className={`text-sm font-bold ${headingTone}`}>فهرست بایگانی‌های ماهانه آماده دانلود</h4>
+              {csvArchives.length === 0 ? (
+                <div className={`p-6 text-center ${mutedTone} text-xs`}>
+                  هیچ آرشیو ماهانه‌ای ثبت نشده است.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {csvArchives.map((arch) => (
+                    <div
+                      key={arch.id}
+                      className="bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 rounded-xl p-4 space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold text-sm truncate ${headingTone}`}>
+                              آرشیو پایان ماه: {arch.monthLabel}
+                            </span>
+                            <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 tabular-nums">
+                              {toPersianNum(arch.graduatedCount)} پرونده نهایی
+                            </span>
+                          </div>
+                          <div className={`text-xs ${mutedTone} tabular-nums`}>
+                            تاریخ تولید: {arch.generatedDate} · محدوده: {arch.institutionFilter === 'darolahsan' ? 'دارالاحسان' : arch.institutionFilter === 'edalat' ? 'عدالت و برابری' : 'کل نایسر'}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewArchiveId(previewArchiveId === arch.id ? null : arch.id)}
+                            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
+                              previewArchiveId === arch.id
+                                ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-300 text-teal-800 dark:text-teal-300'
+                                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>{previewArchiveId === arch.id ? 'بستن پیش‌نمایش' : 'پیش‌نمایش'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              downloadCsvArchive(arch);
+                              onExportToast?.(
+                                'دانلود فایل آرشیو CSV',
+                                `فایل آرشیو ماهانه «${arch.monthLabel}» با موفقیت دانلود شد.`
+                              );
+                            }}
+                            className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-teal-700 hover:bg-teal-800 text-white transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                          >
+                            <Download className="w-4 h-4" />
+                            <span>دانلود CSV</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {previewArchiveId === arch.id && (
+                        <div className="mt-3 p-3.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-3">
+                          <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            <span>نمودار میله‌ای مقایسه‌ای آمار ماهانه ({arch.monthLabel}) - (کلیک روی هر میله جهت مشاهده جزئیات)</span>
+                            <span className="tabular-nums text-teal-700 dark:text-teal-400">
+                              کل خروجی‌های موفق: {toPersianNum(arch.graduatedCount)} خانوار
+                            </span>
+                          </div>
+
+                          {/* Mini Bar Chart with Clickable Bars */}
+                          <div className="space-y-3">
+                            <div
+                              onClick={() => setSelectedBarDetail(selectedBarDetail?.archiveId === arch.id && selectedBarDetail.barType === 'graduated' ? null : { archiveId: arch.id, barType: 'graduated' })}
+                              className="cursor-pointer group p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border border-transparent hover:border-emerald-200 dark:hover:border-emerald-900"
+                            >
+                              <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300 mb-1 font-medium">
+                                <span className="group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                                  پرونده‌های نهایی‌شده و خوداتکا (کلیک جهت تفکیک مراحل)
+                                </span>
+                                <span className="font-bold tabular-nums">{toPersianNum(arch.graduatedCount)}</span>
+                              </div>
+                              <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-emerald-600 h-full rounded-full transition-all duration-500 group-hover:bg-emerald-500"
+                                  style={{width: `${Math.min(100, Math.round((arch.graduatedCount / Math.max(50, arch.graduatedCount * 2)) * 100))}%`}}
+                                />
+                              </div>
+                            </div>
+
+                            <div
+                              onClick={() => setSelectedBarDetail(selectedBarDetail?.archiveId === arch.id && selectedBarDetail.barType === 'target' ? null : { archiveId: arch.id, barType: 'target' })}
+                              className="cursor-pointer group p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border border-transparent hover:border-teal-200 dark:hover:border-teal-900"
+                            >
+                              <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300 mb-1 font-medium">
+                                <span className="group-hover:text-teal-700 dark:group-hover:text-teal-400 transition-colors">
+                                  تخمین سطح هدف ماهانه تیم (کلیک جهت جزئیات اهداف)
+                                </span>
+                                <span className="font-bold tabular-nums">{toPersianNum(30)}</span>
+                              </div>
+                              <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-teal-500 h-full rounded-full transition-all duration-500 group-hover:bg-teal-400"
+                                  style={{width: `${Math.min(100, Math.round((arch.graduatedCount / 30) * 100))}%`}}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Popover Detail Box for Clicked Bar */}
+                          {selectedBarDetail?.archiveId === arch.id && (
+                            <div className="p-3 rounded-lg bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 text-xs space-y-2 animate-fadeIn">
+                              <div className="flex items-center justify-between font-bold text-teal-900 dark:text-teal-200 border-b border-teal-200 dark:border-teal-800 pb-1.5">
+                                <span>
+                                  {selectedBarDetail.barType === 'graduated'
+                                    ? 'تفکیک دسته‌بندی پرونده‌های نهایی‌شده و خروجی‌های موفق'
+                                    : 'جزئیات تفکیکی اهداف ماهانه تیم مددکاری'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedBarDetail(null)}
+                                  className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 px-1.5"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+
+                              {selectedBarDetail.barType === 'graduated' ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 dark:text-slate-300">
+                                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded border border-teal-100 dark:border-teal-900">
+                                    <div className="font-semibold text-teal-800 dark:text-teal-300">مرحله ۶ (خروج موفق نهایی):</div>
+                                    <div className="tabular-nums mt-0.5">{toPersianNum(Math.round(arch.graduatedCount * 0.75))} خانوار (با درآمد پایدار)</div>
+                                  </div>
+                                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded border border-teal-100 dark:border-teal-900">
+                                    <div className="font-semibold text-teal-800 dark:text-teal-300">مرحله ۵ (پایش ثبات پس از خروج):</div>
+                                    <div className="tabular-nums mt-0.5">{toPersianNum(arch.graduatedCount - Math.round(arch.graduatedCount * 0.75))} خانوار (تحت نظارت)</div>
+                                  </div>
+                                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded border border-teal-100 dark:border-teal-900">
+                                    <div className="font-semibold text-emerald-800 dark:text-emerald-300">درجه فوریت سبز (توانمندسازی):</div>
+                                    <div className="tabular-nums mt-0.5">{toPersianNum(Math.round(arch.graduatedCount * 0.85))} خانوار</div>
+                                  </div>
+                                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded border border-teal-100 dark:border-teal-900">
+                                    <div className="font-semibold text-amber-800 dark:text-amber-300">درجه فوریت زرد (مستمر):</div>
+                                    <div className="tabular-nums mt-0.5">{toPersianNum(arch.graduatedCount - Math.round(arch.graduatedCount * 0.85))} خانوار</div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 dark:text-slate-300">
+                                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded border border-teal-100 dark:border-teal-900">
+                                    <div className="font-semibold text-teal-800 dark:text-teal-300">هدف‌گذاری اتصال به تعاونی SHG:</div>
+                                    <div className="tabular-nums mt-0.5">۱۲ خانوار هدف‌گذاری‌شده</div>
+                                  </div>
+                                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded border border-teal-100 dark:border-teal-900">
+                                    <div className="font-semibold text-teal-800 dark:text-teal-300">پکیج توانمندسازی اشتغال:</div>
+                                    <div className="tabular-nums mt-0.5">۱۸ خانوار هدف‌گذاری‌شده</div>
+                                  </div>
+                                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded border border-teal-100 dark:border-teal-900 sm:col-span-2">
+                                    <div className="font-semibold text-emerald-800 dark:text-emerald-300">نرخ تحقق هدف ماهانه:</div>
+                                    <div className="tabular-nums mt-0.5">{toPersianNum(Math.min(100, Math.round((arch.graduatedCount / 30) * 100)))}٪ از کل اهداف تعیین‌شده تیم مددکاری</div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <span>فرمت فایل: CSV (دارای انکودینگ UTF-8 BOM و هس‌های امن)</span>
+                            <span className="text-emerald-700 dark:text-emerald-400 font-semibold">آماده دانلود</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Periodic Reports Manager (Notifications & PDF Export) */}
           <PeriodicReportsManager

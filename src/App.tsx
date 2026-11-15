@@ -32,6 +32,9 @@ import {
   X,
   BookOpen,
   Database,
+  Wifi,
+  WifiOff,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {AssessmentConsentView} from './components/AssessmentConsentView';
 import {InquiryView} from './components/InquiryView';
@@ -43,6 +46,7 @@ import {ReportsView} from './components/ReportsView';
 import {SecurityRoadmapView} from './components/SecurityRoadmapView';
 import {UserGuideModal} from './components/UserGuideModal';
 import {BackupRestoreModal} from './components/BackupRestoreModal';
+import {HistoricalDataImportModal} from './components/HistoricalDataImportModal';
 import {apiFetch} from './utils/staticApiFallback';
 import {
   QuickSearchShortcutModal,
@@ -404,6 +408,51 @@ export default function App() {
     return () => window.clearInterval(interval);
   }, []);
 
+  const [serverConnected, setServerConnected] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkConnection = async () => {
+      try {
+        const res = await fetch('/api/overview?institution=darolahsan&role=case_worker', {
+          method: 'HEAD',
+        });
+        const connected = res.ok || res.status < 500;
+        if (!isMounted) return;
+        setServerConnected((prev) => {
+          if (!prev && connected) {
+            pushToastRef.current({
+              variant: 'success',
+              category: 'transaction',
+              title: 'ارتباط با سرور برقرار شد',
+              description: 'اتصال به سرور پشتیبان با موفقیت برقرار گردید.',
+            });
+          }
+          return connected;
+        });
+      } catch {
+        if (!isMounted) return;
+        setServerConnected((prev) => {
+          if (prev) {
+            pushToastRef.current({
+              variant: 'error',
+              category: 'critical',
+              title: 'ارتباط با سرور قطع شد',
+              description: 'ارتباط با سرور قطع گردید؛ سیستم به‌صورت محلی (Offline/Fallback) به کار خود ادامه می‌دهد.',
+            });
+          }
+          return false;
+        });
+      }
+    };
+
+    const interval = window.setInterval(checkConnection, 20000);
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   // Prefill & Update support from Inquiry / Overview -> Assessment Wizard / 6-Stage Workflow
   const [prefilledNationalId, setPrefilledNationalId] = useState('');
   const [prefilledBlockId, setPrefilledBlockId] = useState('');
@@ -413,6 +462,23 @@ export default function App() {
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
+  const [isHistoricalImportOpen, setIsHistoricalImportOpen] = useState(false);
+
+  const handleImportLegacyCases = (imported: CaseRecordView[]) => {
+    setCases((prev) => [...imported, ...prev]);
+    setSummary((prev) => ({
+      ...prev,
+      totalActiveCases: prev.totalActiveCases + imported.length,
+      darolahsanCases: activeInstitution === 'darolahsan' ? prev.darolahsanCases + imported.length : prev.darolahsanCases,
+      edalatCases: activeInstitution === 'edalat' ? prev.edalatCases + imported.length : prev.edalatCases,
+    }));
+    pushToast({
+      variant: 'success',
+      category: 'transaction',
+      title: 'سوابق گذشته با موفقیت ادغام شد',
+      description: `${new Intl.NumberFormat('fa-IR').format(imported.length)} پرونده تاریخی به پایگاه داده سامانه افزوده شد.`,
+    });
+  };
 
   const handleRestoreData = (imported: {cases: CaseRecordView[]; blocks: NaysarBlock[]}) => {
     setCases(imported.cases);
@@ -1041,6 +1107,16 @@ export default function App() {
 
             <button
               type="button"
+              onClick={() => setIsHistoricalImportOpen(true)}
+              title="بارگذاری و تحلیل اطلاعات مددجویان گذشته"
+              aria-label="بارگذاری و تحلیل اطلاعات مددجویان گذشته"
+              className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
               onClick={handleLogout}
               title="خروج از حساب کاربری"
               aria-label="خروج از حساب کاربری"
@@ -1245,6 +1321,23 @@ export default function App() {
             <span className="hidden xl:inline text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">
               {liveDateTime.date} · {liveDateTime.shortTime}
             </span>
+
+            {/* Server Connection Status Indicator */}
+            <div
+              className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                serverConnected
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
+                  : 'bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800/60 animate-pulse'
+              }`}
+              title={serverConnected ? 'اتصال به سرور برقرار است' : 'ارتباط با سرور قطع شده است - استفاده از حافظه محلی'}
+            >
+              {serverConnected ? (
+                <Wifi className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              ) : (
+                <WifiOff className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+              )}
+              <span className="hidden lg:inline">{serverConnected ? 'سرور متصل' : 'قطع ارتباط (آفلاین)'}</span>
+            </div>
 
             {desktopPermission === 'default' && (uiPrefs.toast?.desktopEnabled ?? true) && (
               <button
@@ -1582,6 +1675,9 @@ export default function App() {
               <SecurityRoadmapView
                 auditLogs={auditLogs}
                 onRefreshLogs={fetchAuditLogs}
+                cases={cases}
+                isDark={isDark}
+                themeAccent={uiPrefs.accent}
               />
             )}
           </>
@@ -1625,6 +1721,19 @@ export default function App() {
         onExportToast={(title, description) =>
           pushToast({variant: 'success', category: 'transaction', title, description})
         }
+      />
+
+      <HistoricalDataImportModal
+        isOpen={isHistoricalImportOpen}
+        onClose={() => setIsHistoricalImportOpen(false)}
+        cases={cases}
+        activeInstitution={activeInstitution}
+        onImportLegacyCases={handleImportLegacyCases}
+        onExportToast={(title, description) =>
+          pushToast({variant: 'success', category: 'transaction', title, description})
+        }
+        isDark={isDark}
+        themeAccent={uiPrefs.accent}
       />
 
       <QuickSearchShortcutModal
