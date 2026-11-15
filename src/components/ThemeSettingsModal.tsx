@@ -61,10 +61,9 @@ const ACCENT_OPTIONS: Array<{id: UiThemeAccent; label: string; swatchClass: stri
 ];
 
 const FONT_OPTIONS: Array<{id: UiFontFamily; label: string; desc: string}> = [
-  {id: 'vazirmatn', label: 'وزیرمتن (فونت اداری مدرن)', desc: 'فونت استاندارد، متعادل و رسمی اداری'},
-  {id: 'amiri', label: 'امیری / نسخ (Traditional Amiri)', desc: 'خوانایی کلاسیک، نسخ و اسناد رسمی هیئت مدیره'},
-  {id: 'noto', label: 'نوتو سنس (رسمی و تحلیلی)', desc: 'خوانایی بالا برای گزارش‌ها و جداول'},
-  {id: 'rubik', label: 'روبیک (Rubik)', desc: 'طراحی هندسی نرم و روان'},
+  {id: 'vazirmatn', label: 'وزیرمتن (Vazirmatn)', desc: 'فونت استاندارد، متعادل و رسمی اداری'},
+  {id: 'noto', label: 'نوتو سنس عربی-فارسی', desc: 'خوانایی بالا برای گزارش‌ها و متون تحلیلی'},
+  {id: 'rubik', label: 'روبیک (Rubik)', desc: 'طراحی هندسی نرم و مدرن برای پیشخوان'},
   {id: 'almarai', label: 'المراعی (Almarai)', desc: 'شفاف و دقیق برای اعداد و جداول'},
 ];
 

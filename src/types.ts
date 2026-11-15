@@ -387,7 +387,7 @@ export interface AiPrioritizationResult {
 
 export type UiThemeMode = 'light' | 'dark' | 'system';
 export type UiThemeAccent = 'teal' | 'blue' | 'emerald' | 'amber' | 'violet';
-export type UiFontFamily = 'vazirmatn' | 'amiri' | 'noto' | 'rubik' | 'almarai';
+export type UiFontFamily = 'vazirmatn' | 'noto' | 'rubik' | 'almarai';
 export type UiFontScale = 'compact' | 'normal' | 'large';
 
 export type ToastSeverityLevel = 'critical_only' | 'important' | 'all';
